@@ -52,7 +52,7 @@ const startMutation = useMutation({
   },
 })
 
-function getStatusVariant(status: string, health?: string): 'success' | 'warning' | 'error' | 'info' | 'neutral' {
+function getStatusVariant(status: string, health?: string | null): 'success' | 'warning' | 'error' | 'info' | 'neutral' {
   if (health === 'unhealthy') return 'warning'
   if (status === 'running') return 'success'
   if (status === 'stopped' || status === 'exited') return 'error'
@@ -113,8 +113,8 @@ function navigateToDetail(name: string) {
               <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">
                 Status
               </th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">
-                Uptime
+              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">
+                Memory
               </th>
               <th class="text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">
                 Actions
@@ -148,9 +148,9 @@ function navigateToDetail(name: string) {
                   {{ container.health === 'unhealthy' ? 'unhealthy' : container.status }}
                 </Badge>
               </td>
-              <td class="px-4 py-3">
+              <td class="px-4 py-3 hidden md:table-cell">
                 <span class="text-sm text-gray-500 dark:text-gray-400">
-                  {{ container.uptime || '-' }}
+                  {{ container.memory_usage_mb > 0 ? `${container.memory_usage_mb.toFixed(0)} MB` : '-' }}
                 </span>
               </td>
               <td class="px-4 py-3">

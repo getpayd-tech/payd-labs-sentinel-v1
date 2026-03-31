@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { systemService } from '@/services/system'
-import { formatBytes, formatPercent, formatUptime } from '@/utils/formatters'
+import { formatPercent, formatUptime } from '@/utils/formatters'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import Card from '@/components/ui/Card.vue'
 import { Cpu, MemoryStick, HardDrive, Network, Activity, Server } from 'lucide-vue-next'
@@ -21,6 +21,15 @@ function getUsageColor(percent: number): string {
   if (percent >= 90) return 'bg-red-500'
   if (percent >= 70) return 'bg-yellow-500'
   return 'bg-accent'
+}
+
+function formatGb(gb: number): string {
+  return `${gb.toFixed(1)} GB`
+}
+
+function formatMb(mb: number): string {
+  if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`
+  return `${mb.toFixed(0)} MB`
 }
 </script>
 
@@ -90,8 +99,7 @@ function getUsageColor(percent: number): string {
             />
           </div>
           <p class="text-xs text-gray-400 mt-2">
-            {{ formatBytes(metrics.memory_used) }} / {{ formatBytes(metrics.memory_total) }}
-            ({{ formatBytes(metrics.memory_available) }} available)
+            {{ formatMb(metrics.memory_used_mb) }} / {{ formatMb(metrics.memory_total_mb) }}
           </p>
         </Card>
 
@@ -115,8 +123,7 @@ function getUsageColor(percent: number): string {
             />
           </div>
           <p class="text-xs text-gray-400 mt-2">
-            {{ formatBytes(metrics.disk_used) }} / {{ formatBytes(metrics.disk_total) }}
-            ({{ formatBytes(metrics.disk_free) }} free)
+            {{ formatGb(metrics.disk_used_gb) }} / {{ formatGb(metrics.disk_total_gb) }}
           </p>
         </Card>
 
@@ -133,19 +140,11 @@ function getUsageColor(percent: number): string {
           <div class="space-y-2">
             <div class="flex items-center justify-between text-sm">
               <span class="text-gray-500 dark:text-gray-400">Sent</span>
-              <span class="font-medium text-kPrimary dark:text-white">{{ formatBytes(metrics.network_bytes_sent) }}</span>
+              <span class="font-medium text-kPrimary dark:text-white">{{ formatMb(metrics.network_tx_mb) }}</span>
             </div>
             <div class="flex items-center justify-between text-sm">
               <span class="text-gray-500 dark:text-gray-400">Received</span>
-              <span class="font-medium text-kPrimary dark:text-white">{{ formatBytes(metrics.network_bytes_recv) }}</span>
-            </div>
-            <div class="flex items-center justify-between text-sm">
-              <span class="text-gray-500 dark:text-gray-400">Packets Sent</span>
-              <span class="font-medium text-kPrimary dark:text-white">{{ metrics.network_packets_sent.toLocaleString() }}</span>
-            </div>
-            <div class="flex items-center justify-between text-sm">
-              <span class="text-gray-500 dark:text-gray-400">Packets Recv</span>
-              <span class="font-medium text-kPrimary dark:text-white">{{ metrics.network_packets_recv.toLocaleString() }}</span>
+              <span class="font-medium text-kPrimary dark:text-white">{{ formatMb(metrics.network_rx_mb) }}</span>
             </div>
           </div>
         </Card>
@@ -195,15 +194,11 @@ function getUsageColor(percent: number): string {
           <div class="space-y-2">
             <div class="flex items-center justify-between text-sm">
               <span class="text-gray-500 dark:text-gray-400">Uptime</span>
-              <span class="font-medium text-kPrimary dark:text-white">{{ formatUptime(metrics.uptime) }}</span>
+              <span class="font-medium text-kPrimary dark:text-white">{{ formatUptime(metrics.uptime_seconds) }}</span>
             </div>
             <div class="flex items-center justify-between text-sm">
-              <span class="text-gray-500 dark:text-gray-400">Processes</span>
-              <span class="font-medium text-kPrimary dark:text-white">{{ metrics.process_count }}</span>
-            </div>
-            <div class="flex items-center justify-between text-sm">
-              <span class="text-gray-500 dark:text-gray-400">Boot Time</span>
-              <span class="font-medium text-kPrimary dark:text-white text-xs">{{ metrics.boot_time }}</span>
+              <span class="text-gray-500 dark:text-gray-400">CPU Cores</span>
+              <span class="font-medium text-kPrimary dark:text-white">{{ metrics.cpu_count }}</span>
             </div>
           </div>
         </Card>

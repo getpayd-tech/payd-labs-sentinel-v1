@@ -75,7 +75,7 @@ const startMutation = useMutation({
   onError: () => toast.error('Failed to start container'),
 })
 
-function getStatusVariant(status?: string, health?: string): 'success' | 'warning' | 'error' | 'info' | 'neutral' {
+function getStatusVariant(status?: string, health?: string | null): 'success' | 'warning' | 'error' | 'info' | 'neutral' {
   if (health === 'unhealthy') return 'warning'
   if (status === 'running') return 'success'
   if (status === 'stopped' || status === 'exited') return 'error'

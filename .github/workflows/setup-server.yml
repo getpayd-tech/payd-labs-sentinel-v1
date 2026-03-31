@@ -1,0 +1,147 @@
+name: Setup Sentinel on Server
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Sentinel on server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script: |
+            set -e
+
+            echo "=== Creating Sentinel directory ==="
+            mkdir -p /apps/sentinel
+
+            echo "=== Writing docker-compose.yml ==="
+            cat > /apps/sentinel/docker-compose.yml << 'COMPOSE_EOF'
+            services:
+              sentinel-api:
+                image: ghcr.io/getpayd-tech/sentinel-api:latest
+                container_name: sentinel-api
+                restart: unless-stopped
+                env_file: .env
+                volumes:
+                  - /var/run/docker.sock:/var/run/docker.sock
+                  - /apps:/apps:rw
+                  - sentinel-data:/data
+                networks:
+                  - proxy
+                  - sentinel-internal
+                depends_on:
+                  - sentinel-redis
+                healthcheck:
+                  test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+                  interval: 30s
+                  timeout: 5s
+                  retries: 3
+
+              sentinel-ui:
+                image: ghcr.io/getpayd-tech/sentinel-ui:latest
+                container_name: sentinel-ui
+                restart: unless-stopped
+                networks:
+                  - proxy
+
+              sentinel-redis:
+                image: redis:7-alpine
+                container_name: sentinel-redis
+                restart: unless-stopped
+                volumes:
+                  - sentinel-redis-data:/data
+                networks:
+                  - sentinel-internal
+
+            volumes:
+              sentinel-data:
+              sentinel-redis-data:
+
+            networks:
+              proxy:
+                external: true
+              sentinel-internal:
+                driver: bridge
+            COMPOSE_EOF
+
+            echo "=== Writing .env ==="
+            if [ ! -f /apps/sentinel/.env ]; then
+              GENERATED_SECRET=$(openssl rand -hex 32)
+              GENERATED_ENCRYPTION_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" 2>/dev/null || openssl rand -base64 32)
+              GENERATED_ADMIN_PASS=$(openssl rand -base64 16)
+
+              cat > /apps/sentinel/.env << ENV_EOF
+            APP_ENV=production
+            DEBUG=false
+            SECRET_KEY=${GENERATED_SECRET}
+
+            DATABASE_URL=sqlite+aiosqlite:///data/sentinel.db
+            REDIS_URL=redis://sentinel-redis:6379/0
+
+            CORS_ORIGINS=https://sentinel.paydlabs.com
+
+            JWT_ACCESS_EXPIRE_MINUTES=60
+            JWT_REFRESH_EXPIRE_DAYS=7
+
+            PG_ADMIN_HOST=${{ secrets.PG_ADMIN_HOST }}
+            PG_ADMIN_PORT=25060
+            PG_ADMIN_USER=${{ secrets.PG_ADMIN_USER }}
+            PG_ADMIN_PASSWORD=${{ secrets.PG_ADMIN_PASSWORD }}
+            PG_ADMIN_DATABASE=defaultdb
+            PG_ADMIN_SSLMODE=require
+
+            ENCRYPTION_KEY=${GENERATED_ENCRYPTION_KEY}
+
+            DEFAULT_ADMIN_USERNAME=admin
+            DEFAULT_ADMIN_PASSWORD=${GENERATED_ADMIN_PASS}
+            ENV_EOF
+
+              chmod 600 /apps/sentinel/.env
+              echo "=== Admin credentials ==="
+              echo "Username: admin"
+              echo "Password: ${GENERATED_ADMIN_PASS}"
+              echo "SAVE THESE CREDENTIALS — they won't be shown again."
+            else
+              echo ".env already exists, skipping"
+            fi
+
+            echo "=== Adding Caddy route ==="
+            if ! grep -q "sentinel.paydlabs.com" /apps/caddy/Caddyfile; then
+              cat >> /apps/caddy/Caddyfile << 'CADDY_EOF'
+
+            sentinel.paydlabs.com {
+              header {
+                X-XSS-Protection "1; mode=block"
+                Permissions-Policy "camera=(), microphone=(), geolocation=()"
+                -Server
+              }
+
+              handle /api/* {
+                reverse_proxy sentinel-api:8000
+              }
+
+              handle /ws/* {
+                reverse_proxy sentinel-api:8000
+              }
+
+              handle {
+                reverse_proxy sentinel-ui:80
+              }
+            }
+            CADDY_EOF
+
+              echo "Reloading Caddy..."
+              docker exec caddy-proxy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+              echo "Caddy route added and reloaded"
+            else
+              echo "Caddy route already exists, skipping"
+            fi
+
+            echo "=== Setup complete ==="
+            echo "Run the deploy workflow to start Sentinel"

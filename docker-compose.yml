@@ -1,0 +1,46 @@
+services:
+  sentinel-api:
+    build:
+      context: ./sentinel-api
+      dockerfile: Dockerfile
+    container_name: sentinel-api
+    restart: unless-stopped
+    env_file: ./sentinel-api/.env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./sentinel-api/app:/app/app
+      - sentinel-data:/data
+    ports:
+      - "8000:8000"
+    depends_on:
+      - sentinel-redis
+    networks:
+      - sentinel-internal
+
+  sentinel-ui:
+    build:
+      context: ./sentinel-ui
+      dockerfile: Dockerfile
+    container_name: sentinel-ui
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    networks:
+      - sentinel-internal
+
+  sentinel-redis:
+    image: redis:7-alpine
+    container_name: sentinel-redis
+    restart: unless-stopped
+    volumes:
+      - sentinel-redis-data:/data
+    networks:
+      - sentinel-internal
+
+volumes:
+  sentinel-data:
+  sentinel-redis-data:
+
+networks:
+  sentinel-internal:
+    driver: bridge

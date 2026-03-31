@@ -1,0 +1,46 @@
+services:
+  sentinel-api:
+    image: ghcr.io/getpayd-tech/sentinel-api:latest
+    container_name: sentinel-api
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /apps:/apps:rw
+      - sentinel-data:/data
+    networks:
+      - proxy
+      - sentinel-internal
+    depends_on:
+      - sentinel-redis
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  sentinel-ui:
+    image: ghcr.io/getpayd-tech/sentinel-ui:latest
+    container_name: sentinel-ui
+    restart: unless-stopped
+    networks:
+      - proxy
+
+  sentinel-redis:
+    image: redis:7-alpine
+    container_name: sentinel-redis
+    restart: unless-stopped
+    volumes:
+      - sentinel-redis-data:/data
+    networks:
+      - sentinel-internal
+
+volumes:
+  sentinel-data:
+  sentinel-redis-data:
+
+networks:
+  proxy:
+    external: true
+  sentinel-internal:
+    driver: bridge

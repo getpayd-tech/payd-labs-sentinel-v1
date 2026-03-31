@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
 
     # SQLite database (stored on Docker volume at /data)
-    database_url: str = "sqlite+aiosqlite:///data/sentinel.db"
+    database_url: str = "sqlite+aiosqlite:////data/sentinel.db"
 
     # Redis
     redis_url: str = "redis://sentinel-redis:6379/0"

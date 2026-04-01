@@ -1,6 +1,7 @@
 """Domain / Caddy route management routes."""
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -12,7 +13,6 @@ from app.schemas.domain import (
     CaddyReloadResponse,
     DomainCreate,
     DomainInfo,
-    DomainList,
     DomainUpdate,
 )
 from app.services.audit_service import log_action
@@ -29,12 +29,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/domains", tags=["Domains"])
 
 
-@router.get("", response_model=DomainList)
+@router.get("", response_model=list[DomainInfo])
 async def list_domains(claims: dict = Depends(require_admin)):
     """List all domain routes parsed from the Caddyfile."""
-    blocks = parse_caddyfile()
-    items = [DomainInfo(**b) for b in blocks]
-    return DomainList(items=items, total=len(items))
+    blocks = await asyncio.to_thread(parse_caddyfile)
+    return [DomainInfo(**b) for b in blocks]
 
 
 @router.post("", response_model=DomainInfo, status_code=201)
@@ -46,7 +45,7 @@ async def create_domain(
 ):
     """Add a new domain route to the Caddyfile."""
     try:
-        targets = [t.model_dump() for t in body.proxy_targets]
+        targets = [{"path_prefix": "/", "upstream": f"{u.address}:{u.port}"} for u in body.upstreams]
         await add_domain(body.domain, targets)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -59,18 +58,17 @@ async def create_domain(
         user_id=claims.get("sub"),
         action="domain.create",
         target=body.domain,
-        details={"proxy_targets": targets},
+        details={"upstreams": [u.model_dump() for u in body.upstreams]},
         ip_address=request.client.host if request and request.client else None,
     )
 
     # Return the newly added block
-    blocks = parse_caddyfile()
+    blocks = await asyncio.to_thread(parse_caddyfile)
     for block in blocks:
         if block["domain"].lower() == body.domain.lower():
             return DomainInfo(**block)
 
-    # Fallback
-    return DomainInfo(domain=body.domain, upstream_services=[], has_tls=True, raw_config="")
+    return DomainInfo(domain=body.domain, upstreams=[], tls_enabled=True, tls_auto=body.tls_auto)
 
 
 @router.put("/{domain}", response_model=DomainInfo)
@@ -83,7 +81,7 @@ async def update_domain_route(
 ):
     """Update an existing domain route in the Caddyfile."""
     try:
-        targets = [t.model_dump() for t in body.proxy_targets]
+        targets = [{"path_prefix": "/", "upstream": f"{u.address}:{u.port}"} for u in body.upstreams]
         await update_domain(domain, targets)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
@@ -96,16 +94,16 @@ async def update_domain_route(
         user_id=claims.get("sub"),
         action="domain.update",
         target=domain,
-        details={"proxy_targets": targets},
+        details={"upstreams": [u.model_dump() for u in body.upstreams]},
         ip_address=request.client.host if request and request.client else None,
     )
 
-    blocks = parse_caddyfile()
+    blocks = await asyncio.to_thread(parse_caddyfile)
     for block in blocks:
         if block["domain"].lower() == domain.lower():
             return DomainInfo(**block)
 
-    return DomainInfo(domain=domain, upstream_services=[], has_tls=True, raw_config="")
+    return DomainInfo(domain=domain, upstreams=[], tls_enabled=True, tls_auto=True)
 
 
 @router.delete("/{domain}")

@@ -11,8 +11,8 @@ import type {
 
 export const projectsService = {
   async list(): Promise<ProjectInfo[]> {
-    const { data } = await api.get<ProjectInfo[]>('/projects')
-    return data
+    const { data } = await api.get('/projects')
+    return data.items ?? data
   },
 
   async get(id: string): Promise<ProjectInfo> {

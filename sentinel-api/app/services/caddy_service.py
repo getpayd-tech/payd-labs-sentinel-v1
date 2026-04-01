@@ -58,22 +58,30 @@ def parse_caddyfile() -> list[dict[str, Any]]:
                 # Block closed
                 raw = "\n".join(current_block_lines)
 
-                # Extract upstream services
-                upstreams: list[str] = []
+                # Extract upstream services as {address, port} objects
+                upstreams: list[dict[str, Any]] = []
                 for bl in current_block_lines:
                     bl_stripped = bl.strip()
                     if bl_stripped.startswith("reverse_proxy"):
-                        # e.g. "reverse_proxy my-app:8000"
                         parts = bl_stripped.split()
                         for part in parts[1:]:
                             if not part.startswith("{") and not part.startswith("#"):
-                                upstreams.append(part)
+                                if ":" in part:
+                                    addr, port_str = part.rsplit(":", 1)
+                                    try:
+                                        upstreams.append({"address": addr, "port": int(port_str)})
+                                    except ValueError:
+                                        upstreams.append({"address": part, "port": 80})
+                                else:
+                                    upstreams.append({"address": part, "port": 80})
+
+                has_tls = "tls" in raw.lower() or (current_domain and ":" not in current_domain)
 
                 blocks.append({
                     "domain": current_domain or "",
-                    "upstream_services": upstreams,
-                    "has_tls": "tls" in raw.lower() or not current_domain or "" == current_domain or ":" not in (current_domain or ""),
-                    "raw_config": raw,
+                    "upstreams": upstreams,
+                    "tls_enabled": bool(has_tls),
+                    "tls_auto": bool(has_tls),
                 })
 
                 current_domain = None

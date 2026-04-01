@@ -28,11 +28,7 @@ async def get_logs(
     since: Optional[int] = Query(None, description="Unix timestamp — only return logs after this time"),
     claims: dict = Depends(require_admin),
 ):
-    """Fetch aggregated logs from one or more containers.
-
-    Logs are merged and sorted by timestamp. Supports filtering by
-    container names, search text, log level, and time.
-    """
+    """Fetch aggregated logs from one or more containers."""
     container_list: list[str] | None = None
     if containers:
         container_list = [c.strip() for c in containers.split(",") if c.strip()]
@@ -46,7 +42,24 @@ async def get_logs(
         since=since,
     )
 
+    # Build entries with both container_name and container fields
+    entries = [
+        LogEntry(
+            timestamp=e["timestamp"],
+            message=e["message"],
+            stream=e["stream"],
+            container_name=e.get("container_name", ""),
+            container=e.get("container_name", ""),
+            level=e.get("level"),
+        )
+        for e in data["entries"]
+    ]
+
+    # Collect unique container names for the response
+    container_names = sorted(set(e.container for e in entries if e.container))
+
     return AggregatedLogs(
-        entries=[LogEntry(**e) for e in data["entries"]],
+        entries=entries,
         total=data["total"],
+        containers=container_names,
     )

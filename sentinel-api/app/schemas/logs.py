@@ -12,6 +12,7 @@ class LogEntry(BaseModel):
     message: str
     stream: str  # stdout, stderr
     container_name: str = ""
+    container: str = ""
     level: Optional[str] = None
 
 
@@ -19,3 +20,4 @@ class AggregatedLogs(BaseModel):
     """Aggregated logs from one or more containers."""
     entries: list[LogEntry]
     total: int
+    containers: list[str] = []

@@ -47,9 +47,14 @@ async def list_databases() -> list[dict[str, Any]]:
             SELECT
                 d.datname AS name,
                 pg_catalog.pg_get_userbyid(d.datdba) AS owner,
-                pg_catalog.pg_database_size(d.datname) AS size_bytes
+                CASE
+                    WHEN has_database_privilege(d.datname, 'CONNECT')
+                    THEN pg_catalog.pg_database_size(d.datname)
+                    ELSE 0
+                END AS size_bytes
             FROM pg_catalog.pg_database d
             WHERE d.datistemplate = false
+              AND d.datname NOT IN ('_dodb', 'postgres', 'template0', 'template1')
             ORDER BY d.datname
             """
         )

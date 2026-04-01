@@ -27,13 +27,13 @@ const showEditModal = ref(false)
 
 const newDomain = reactive({
   domain: '',
-  tls_auto: true,
+  tls_mode: 'auto' as 'auto' | 'cloudflare_dns' | 'off',
   targets: [{ path_prefix: '/', upstream: '' }] as { path_prefix: string; upstream: string }[],
 })
 
 const editDomain = reactive({
   domain: '',
-  tls_auto: true,
+  tls_mode: 'auto' as 'auto' | 'cloudflare_dns' | 'off',
   targets: [{ path_prefix: '/', upstream: '' }] as { path_prefix: string; upstream: string }[],
 })
 
@@ -56,7 +56,7 @@ const createMutation = useMutation({
     return domainsService.create({
       domain: newDomain.domain,
       upstreams,
-      tls_auto: newDomain.tls_auto,
+      tls_mode: newDomain.tls_mode,
     })
   },
   onSuccess: () => {
@@ -83,7 +83,7 @@ const updateMutation = useMutation({
       })
     return domainsService.update(editDomain.domain, {
       upstreams,
-      tls_auto: editDomain.tls_auto,
+      tls_mode: editDomain.tls_mode,
     })
   },
   onSuccess: () => {
@@ -119,7 +119,7 @@ const reloadMutation = useMutation({
 
 function resetNewDomain() {
   newDomain.domain = ''
-  newDomain.tls_auto = true
+  newDomain.tls_mode = 'auto'
   newDomain.targets = [{ path_prefix: '/', upstream: '' }]
 }
 
@@ -128,10 +128,10 @@ function openAddModal() {
   showAddModal.value = true
 }
 
-function openEditModal(domainInfo: { domain: string; upstreams: { address: string; port: number }[]; tls_auto: boolean }) {
+function openEditModal(domainInfo: any) {
   editDomain.domain = domainInfo.domain
-  editDomain.tls_auto = domainInfo.tls_auto
-  editDomain.targets = domainInfo.upstreams.map((u) => ({
+  editDomain.tls_mode = domainInfo.tls_mode || 'auto'
+  editDomain.targets = (domainInfo.upstreams || []).map((u: any) => ({
     path_prefix: '/',
     upstream: `${u.address}:${u.port}`,
   }))
@@ -241,9 +241,9 @@ function confirmDelete(domain: string) {
                 </div>
               </td>
               <td class="px-4 py-3">
-                <Badge :variant="domain.tls_enabled ? 'success' : 'neutral'" size="sm">
-                  <component :is="domain.tls_enabled ? Lock : LockOpen" class="w-3 h-3 mr-0.5" />
-                  {{ domain.tls_enabled ? 'Enabled' : 'Disabled' }}
+                <Badge :variant="domain.tls_mode === 'off' ? 'neutral' : domain.tls_mode === 'cloudflare_dns' ? 'info' : 'success'" size="sm">
+                  <component :is="domain.tls_mode === 'off' ? LockOpen : Lock" class="w-3 h-3 mr-0.5" />
+                  {{ domain.tls_mode === 'cloudflare_dns' ? 'Cloudflare DNS' : domain.tls_mode === 'off' ? 'Off' : 'Auto ACME' }}
                 </Badge>
               </td>
               <td class="px-4 py-3">
@@ -295,14 +295,15 @@ function confirmDelete(domain: string) {
           placeholder="app.example.com"
         />
         <div>
-          <label class="flex items-center gap-2 text-sm text-kPrimary dark:text-gray-300">
-            <input
-              v-model="newDomain.tls_auto"
-              type="checkbox"
-              class="rounded border-kPrimary/15 dark:border-neutral-700 text-accent focus:ring-accent/20"
-            />
-            Enable automatic TLS
-          </label>
+          <label class="block text-sm font-medium text-text mb-1.5">TLS Mode</label>
+          <select
+            v-model="newDomain.tls_mode"
+            class="w-full h-10 px-3 text-sm rounded-lg border border-border bg-surface text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+          >
+            <option value="auto">Auto ACME (Let's Encrypt)</option>
+            <option value="cloudflare_dns">Cloudflare DNS Challenge (wildcards)</option>
+            <option value="off">Off (HTTP only)</option>
+          </select>
         </div>
         <div>
           <label class="block text-sm font-medium text-kPrimary dark:text-gray-300 mb-1.5">Proxy Targets</label>
@@ -364,14 +365,15 @@ function confirmDelete(domain: string) {
           <p class="text-sm font-mono text-text">{{ editDomain.domain }}</p>
         </div>
         <div>
-          <label class="flex items-center gap-2 text-sm text-kPrimary dark:text-gray-300">
-            <input
-              v-model="editDomain.tls_auto"
-              type="checkbox"
-              class="rounded border-kPrimary/15 dark:border-neutral-700 text-accent focus:ring-accent/20"
-            />
-            Enable automatic TLS
-          </label>
+          <label class="block text-sm font-medium text-text mb-1.5">TLS Mode</label>
+          <select
+            v-model="editDomain.tls_mode"
+            class="w-full h-10 px-3 text-sm rounded-lg border border-border bg-surface text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+          >
+            <option value="auto">Auto ACME (Let's Encrypt)</option>
+            <option value="cloudflare_dns">Cloudflare DNS Challenge (wildcards)</option>
+            <option value="off">Off (HTTP only)</option>
+          </select>
         </div>
         <div>
           <label class="block text-sm font-medium text-kPrimary dark:text-gray-300 mb-1.5">Proxy Targets</label>

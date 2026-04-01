@@ -17,18 +17,25 @@ CADDYFILE_PATH = Path("/apps/caddy/Caddyfile")
 
 
 # ---------------------------------------------------------------------------
+# TLS mode detection
+# ---------------------------------------------------------------------------
+
+def _detect_tls_mode(raw_block: str) -> str:
+    """Detect the TLS mode from a raw Caddyfile block."""
+    lower = raw_block.lower()
+    if "dns cloudflare" in lower:
+        return "cloudflare_dns"
+    if re.search(r"\btls\s+off\b", lower):
+        return "off"
+    return "auto"
+
+
+# ---------------------------------------------------------------------------
 # Parsing
 # ---------------------------------------------------------------------------
 
 def parse_caddyfile() -> list[dict[str, Any]]:
-    """Parse the Caddyfile into a list of domain block dicts.
-
-    Each dict contains:
-    - domain: str
-    - upstream_services: list[str]
-    - has_tls: bool
-    - raw_config: str (the raw block text)
-    """
+    """Parse the Caddyfile into a list of domain block dicts."""
     if not CADDYFILE_PATH.exists():
         logger.warning("Caddyfile not found at %s", CADDYFILE_PATH)
         return []
@@ -36,7 +43,6 @@ def parse_caddyfile() -> list[dict[str, Any]]:
     content = CADDYFILE_PATH.read_text()
     blocks: list[dict[str, Any]] = []
 
-    # Simple brace-level parser
     lines = content.split("\n")
     current_domain: str | None = None
     current_block_lines: list[str] = []
@@ -46,7 +52,6 @@ def parse_caddyfile() -> list[dict[str, Any]]:
         stripped = line.strip()
 
         if brace_depth == 0 and stripped and not stripped.startswith("#") and "{" in stripped:
-            # Start of a new domain block
             current_domain = stripped.split("{")[0].strip()
             current_block_lines = [line]
             brace_depth = stripped.count("{") - stripped.count("}")
@@ -55,7 +60,6 @@ def parse_caddyfile() -> list[dict[str, Any]]:
             brace_depth += stripped.count("{") - stripped.count("}")
 
             if brace_depth <= 0:
-                # Block closed
                 raw = "\n".join(current_block_lines)
 
                 # Extract upstream services as {address, port} objects
@@ -75,13 +79,16 @@ def parse_caddyfile() -> list[dict[str, Any]]:
                                 else:
                                     upstreams.append({"address": part, "port": 80})
 
-                has_tls = "tls" in raw.lower() or (current_domain and ":" not in current_domain)
+                tls_mode = _detect_tls_mode(raw)
+                has_tls = tls_mode != "off"
 
                 blocks.append({
                     "domain": current_domain or "",
                     "upstreams": upstreams,
-                    "tls_enabled": bool(has_tls),
-                    "tls_auto": bool(has_tls),
+                    "tls_enabled": has_tls,
+                    "tls_auto": tls_mode == "auto",
+                    "tls_mode": tls_mode,
+                    "raw_config": raw,
                 })
 
                 current_domain = None
@@ -92,71 +99,92 @@ def parse_caddyfile() -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Modification
+# Block generation
 # ---------------------------------------------------------------------------
 
-def _build_block(domain: str, proxy_targets: list[dict[str, str]]) -> str:
+def _build_block(
+    domain: str,
+    proxy_targets: list[dict[str, str]],
+    tls_mode: str = "auto",
+) -> str:
     """Build a Caddyfile block string from a domain and proxy targets."""
     lines = [f"{domain} {{"]
 
+    # TLS configuration
+    if tls_mode == "cloudflare_dns":
+        lines.append("    tls {")
+        lines.append("        dns cloudflare {$CLOUDFLARE_API_TOKEN}")
+        lines.append("    }")
+    elif tls_mode == "off":
+        lines.append("    tls off")
+
+    # Security headers
+    lines.append("    header {")
+    lines.append('        X-XSS-Protection "1; mode=block"')
+    lines.append('        Permissions-Policy "camera=(), microphone=(), geolocation=()"')
+    lines.append("        -Server")
+    lines.append("    }")
+
+    # Proxy targets
     for target in proxy_targets:
         path_prefix = target.get("path_prefix", "/")
         upstream = target["upstream"]
 
         if path_prefix and path_prefix != "/":
-            lines.append(f"    handle_path {path_prefix}* {{")
+            lines.append(f"    handle {path_prefix}* {{")
             lines.append(f"        reverse_proxy {upstream}")
             lines.append("    }")
         else:
-            lines.append(f"    reverse_proxy {upstream}")
+            lines.append(f"    handle {{")
+            lines.append(f"        reverse_proxy {upstream}")
+            lines.append("    }")
 
     lines.append("}")
     return "\n".join(lines)
 
 
-async def add_domain(domain: str, proxy_targets: list[dict[str, str]]) -> None:
-    """Append a new domain block to the Caddyfile.
+# ---------------------------------------------------------------------------
+# Modification
+# ---------------------------------------------------------------------------
 
-    Args:
-        domain: The domain name (e.g. "app.example.com").
-        proxy_targets: List of dicts with ``path_prefix`` and ``upstream``.
-
-    Raises:
-        ValueError: If the domain already exists in the Caddyfile.
-    """
+async def add_domain(
+    domain: str,
+    proxy_targets: list[dict[str, str]],
+    tls_mode: str = "auto",
+) -> None:
+    """Append a new domain block to the Caddyfile."""
     existing = parse_caddyfile()
     for block in existing:
         if block["domain"].lower() == domain.lower():
             raise ValueError(f"Domain '{domain}' already exists in Caddyfile")
 
-    block_text = _build_block(domain, proxy_targets)
+    block_text = _build_block(domain, proxy_targets, tls_mode=tls_mode)
 
     CADDYFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     with open(CADDYFILE_PATH, "a") as f:
         f.write(f"\n\n{block_text}\n")
 
-    logger.info("Added Caddy domain block for %s", domain)
+    logger.info("Added Caddy domain block for %s (tls=%s)", domain, tls_mode)
 
 
-async def update_domain(domain: str, proxy_targets: list[dict[str, str]]) -> None:
-    """Replace an existing domain block in the Caddyfile.
-
-    Raises:
-        ValueError: If the domain is not found.
-    """
+async def update_domain(
+    domain: str,
+    proxy_targets: list[dict[str, str]],
+    tls_mode: str = "auto",
+) -> None:
+    """Replace an existing domain block in the Caddyfile."""
     if not CADDYFILE_PATH.exists():
         raise ValueError("Caddyfile not found")
 
     content = CADDYFILE_PATH.read_text()
 
-    # Find and replace the block
     blocks = parse_caddyfile()
     found = False
     for block in blocks:
         if block["domain"].lower() == domain.lower():
             old_block = block["raw_config"]
-            new_block = _build_block(domain, proxy_targets)
+            new_block = _build_block(domain, proxy_targets, tls_mode=tls_mode)
             content = content.replace(old_block, new_block)
             found = True
             break
@@ -165,15 +193,11 @@ async def update_domain(domain: str, proxy_targets: list[dict[str, str]]) -> Non
         raise ValueError(f"Domain '{domain}' not found in Caddyfile")
 
     CADDYFILE_PATH.write_text(content)
-    logger.info("Updated Caddy domain block for %s", domain)
+    logger.info("Updated Caddy domain block for %s (tls=%s)", domain, tls_mode)
 
 
 async def remove_domain(domain: str) -> None:
-    """Remove a domain block from the Caddyfile.
-
-    Raises:
-        ValueError: If the domain is not found.
-    """
+    """Remove a domain block from the Caddyfile."""
     if not CADDYFILE_PATH.exists():
         raise ValueError("Caddyfile not found")
 
@@ -190,17 +214,13 @@ async def remove_domain(domain: str) -> None:
     if not found:
         raise ValueError(f"Domain '{domain}' not found in Caddyfile")
 
-    # Clean up multiple blank lines
     content = re.sub(r"\n{3,}", "\n\n", content).strip() + "\n"
     CADDYFILE_PATH.write_text(content)
     logger.info("Removed Caddy domain block for %s", domain)
 
 
 async def reload_caddy() -> dict[str, Any]:
-    """Reload the Caddy configuration inside the caddy-proxy container.
-
-    Returns a dict with success status and any output.
-    """
+    """Reload the Caddy configuration inside the caddy-proxy container."""
     try:
         proc = await asyncio.create_subprocess_exec(
             "docker", "exec", "caddy-proxy",

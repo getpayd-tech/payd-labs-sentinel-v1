@@ -24,6 +24,7 @@ class DomainInfo(BaseModel):
     upstreams: list[UpstreamTarget] = []
     tls_enabled: bool = True
     tls_auto: bool = True
+    tls_mode: str = "auto"  # auto | cloudflare_dns | off
     created_at: Optional[str] = None
 
 
@@ -35,7 +36,7 @@ class DomainCreate(BaseModel):
         min_length=1,
         description="Upstream targets for this domain",
     )
-    tls_auto: bool = True
+    tls_mode: str = Field("auto", description="TLS mode: auto (ACME), cloudflare_dns, off")
 
 
 class DomainUpdate(BaseModel):
@@ -45,7 +46,7 @@ class DomainUpdate(BaseModel):
         min_length=1,
         description="Replacement upstream targets",
     )
-    tls_auto: bool = True
+    tls_mode: str = Field("auto", description="TLS mode: auto (ACME), cloudflare_dns, off")
 
 
 class CaddyReloadResponse(BaseModel):

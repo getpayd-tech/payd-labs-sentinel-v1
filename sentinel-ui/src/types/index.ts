@@ -308,23 +308,26 @@ export interface UpstreamTarget {
   port: number
 }
 
+export type TlsMode = 'auto' | 'cloudflare_dns' | 'off'
+
 export interface DomainInfo {
   domain: string
   upstreams: UpstreamTarget[]
   tls_enabled: boolean
   tls_auto: boolean
+  tls_mode: TlsMode
   created_at: string | null
 }
 
 export interface DomainCreate {
   domain: string
   upstreams: UpstreamTarget[]
-  tls_auto?: boolean
+  tls_mode?: TlsMode
 }
 
 export interface DomainUpdate {
   upstreams?: UpstreamTarget[]
-  tls_auto?: boolean
+  tls_mode?: TlsMode
 }
 
 // ─── Logs (aggregated) ───────────────────────────────────────────────────────

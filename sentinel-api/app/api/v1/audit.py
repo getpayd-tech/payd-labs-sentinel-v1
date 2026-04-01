@@ -1,11 +1,13 @@
 """Audit log routes — paginated audit log with filters."""
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,20 +21,18 @@ router = APIRouter(prefix="/audit", tags=["Audit"])
 
 
 # ---------------------------------------------------------------------------
-# Response schemas (inline to avoid circular imports)
+# Response schemas — field names match frontend AuditEntry type
 # ---------------------------------------------------------------------------
-
-from pydantic import BaseModel
 
 
 class AuditLogEntry(BaseModel):
     id: str
-    user_id: Optional[str] = None
+    timestamp: Optional[str] = None
+    user: Optional[str] = None
     action: str
     target: Optional[str] = None
-    details: Optional[dict[str, Any]] = None
+    details: Optional[str] = None
     ip_address: Optional[str] = None
-    created_at: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -41,7 +41,7 @@ class AuditLogList(BaseModel):
     items: list[AuditLogEntry]
     total: int
     page: int
-    page_size: int
+    per_page: int
 
 
 # ---------------------------------------------------------------------------
@@ -56,7 +56,7 @@ async def get_audit_logs(
     date_from: Optional[str] = Query(None, description="ISO date — only entries after this date"),
     date_to: Optional[str] = Query(None, description="ISO date — only entries before this date"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
+    per_page: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     claims: dict = Depends(require_admin),
 ):
@@ -94,8 +94,8 @@ async def get_audit_logs(
         select(AuditLog)
         .where(where_clause)
         .order_by(AuditLog.created_at.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        .offset((page - 1) * per_page)
+        .limit(per_page)
     )
     result = await db.execute(q)
     items = list(result.scalars().all())
@@ -104,16 +104,16 @@ async def get_audit_logs(
         items=[
             AuditLogEntry(
                 id=entry.id,
-                user_id=entry.user_id,
+                timestamp=entry.created_at.isoformat() if entry.created_at else None,
+                user=entry.user_id,
                 action=entry.action,
                 target=entry.target,
-                details=entry.details,
+                details=json.dumps(entry.details) if entry.details else None,
                 ip_address=entry.ip_address,
-                created_at=entry.created_at.isoformat() if entry.created_at else None,
             )
             for entry in items
         ],
         total=total,
         page=page,
-        page_size=page_size,
+        per_page=per_page,
     )

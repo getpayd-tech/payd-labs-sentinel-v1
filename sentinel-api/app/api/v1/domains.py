@@ -46,7 +46,7 @@ async def create_domain(
     """Add a new domain route to the Caddyfile."""
     try:
         targets = [{"path_prefix": "/", "upstream": f"{u.address}:{u.port}"} for u in body.upstreams]
-        await add_domain(body.domain, targets)
+        await add_domain(body.domain, targets, tls_mode=body.tls_mode)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
@@ -82,7 +82,7 @@ async def update_domain_route(
     """Update an existing domain route in the Caddyfile."""
     try:
         targets = [{"path_prefix": "/", "upstream": f"{u.address}:{u.port}"} for u in body.upstreams]
-        await update_domain(domain, targets)
+        await update_domain(domain, targets, tls_mode=body.tls_mode)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:

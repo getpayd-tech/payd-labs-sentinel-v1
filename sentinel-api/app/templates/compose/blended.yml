@@ -1,0 +1,28 @@
+services:
+  {PROJECT_NAME}-api:
+    image: {GHCR_IMAGE_API}:latest
+    container_name: {PROJECT_NAME}-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - proxy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000{HEALTH_ENDPOINT}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  {PROJECT_NAME}-ui:
+    image: {GHCR_IMAGE_UI}:latest
+    container_name: {PROJECT_NAME}-ui
+    restart: unless-stopped
+    networks:
+      - proxy
+    depends_on:
+      - {PROJECT_NAME}-api
+
+networks:
+  proxy:
+    external: true

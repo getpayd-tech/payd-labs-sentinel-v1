@@ -1,4 +1,4 @@
-"""Project management routes — CRUD, provisioning, env vars, templates, scanning."""
+"""Project management routes — CRUD, provisioning, env vars, templates, scanning, wizard."""
 from __future__ import annotations
 
 import logging
@@ -18,6 +18,13 @@ from app.schemas.project import (
     ProvisionRequest,
     TemplateInfo,
 )
+from app.schemas.wizard import (
+    TypeDefaults,
+    WizardPreviewRequest,
+    WizardRequest,
+    WizardResponse,
+    WizardStep,
+)
 from app.services.audit_service import log_action
 from app.services.project_service import (
     create_project,
@@ -30,6 +37,11 @@ from app.services.project_service import (
     scan_existing_projects,
     update_env_vars,
     update_project,
+)
+from app.services.wizard_service import (
+    execute_wizard,
+    get_type_defaults,
+    preview_artifacts,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,6 +70,76 @@ def _project_to_response(p) -> ProjectResponse:
         status=p.status,
         created_at=p.created_at.isoformat() if p.created_at else None,
         updated_at=p.updated_at.isoformat() if p.updated_at else None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Wizard routes (placed before /{id} to avoid route conflicts)
+# ---------------------------------------------------------------------------
+
+@router.get("/wizard/defaults/{project_type}", response_model=TypeDefaults)
+async def get_wizard_defaults(project_type: str, claims: dict = Depends(require_admin)):
+    """Return default configuration values for a project type."""
+    defaults = get_type_defaults(project_type)
+    return TypeDefaults(**defaults)
+
+
+@router.post("/wizard/preview")
+async def wizard_preview(
+    body: WizardPreviewRequest,
+    claims: dict = Depends(require_admin),
+):
+    """Preview generated artifacts (compose, Caddyfile, workflow) without executing."""
+    artifacts = preview_artifacts(
+        name=body.name,
+        display_name=body.display_name or body.name.replace("-", " ").title(),
+        project_type=body.project_type,
+        github_repo=body.github_repo,
+        domain=body.domain,
+        tls_mode=body.tls_mode,
+        health_endpoint=body.health_endpoint,
+    )
+    return artifacts
+
+
+@router.post("/wizard", response_model=WizardResponse)
+async def wizard_execute(
+    body: WizardRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    claims: dict = Depends(require_admin),
+):
+    """Execute the full deploy wizard — provision project, files, Caddy, and optionally database."""
+    result = await execute_wizard(
+        db=db,
+        name=body.name,
+        display_name=body.display_name,
+        project_type=body.project_type,
+        github_repo=body.github_repo,
+        domain=body.domain,
+        tls_mode=body.tls_mode,
+        create_db=body.create_database,
+        database_name=body.database_name,
+        env_vars=body.env_vars,
+        health_endpoint=body.health_endpoint,
+    )
+
+    await log_action(
+        db,
+        user_id=claims.get("sub"),
+        action="wizard.execute",
+        target=body.name,
+        details={"project_type": body.project_type, "domain": body.domain, "steps": len(result["steps"])},
+        ip_address=request.client.host if request and request.client else None,
+    )
+
+    return WizardResponse(
+        project_id=result["project_id"],
+        webhook_secret=result["webhook_secret"],
+        compose_preview=result["compose_preview"],
+        caddyfile_preview=result["caddyfile_preview"],
+        workflow_preview=result["workflow_preview"],
+        steps=[WizardStep(**s) for s in result["steps"]],
     )
 
 

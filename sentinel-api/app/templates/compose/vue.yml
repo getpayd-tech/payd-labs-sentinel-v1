@@ -1,0 +1,11 @@
+services:
+  {PROJECT_NAME}:
+    image: {GHCR_IMAGE}:latest
+    container_name: {PROJECT_NAME}
+    restart: unless-stopped
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

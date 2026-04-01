@@ -182,7 +182,7 @@ export interface DeployRequest {
 
 // ─── Projects ────────────────────────────────────────────────────────────────
 
-export type ProjectType = 'fastapi' | 'vue' | 'laravel' | 'static' | 'blended'
+export type ProjectType = 'fastapi' | 'vue' | 'laravel' | 'static' | 'blended' | 'nuxt' | 'custom'
 
 export interface ProjectInfo {
   id: string

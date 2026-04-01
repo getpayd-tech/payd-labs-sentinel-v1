@@ -39,12 +39,14 @@ const scanMutation = useMutation({
 })
 
 function getTypeVariant(type: ProjectType): 'success' | 'info' | 'warning' | 'neutral' | 'error' {
-  const map: Record<ProjectType, 'success' | 'info' | 'warning' | 'neutral' | 'error'> = {
+  const map: Record<string, 'success' | 'info' | 'warning' | 'neutral' | 'error'> = {
     fastapi: 'success',
     vue: 'info',
     laravel: 'error',
     static: 'neutral',
     blended: 'warning',
+    nuxt: 'info',
+    custom: 'neutral',
   }
   return map[type] || 'neutral'
 }
@@ -77,7 +79,7 @@ function getStatusVariant(status: string): 'success' | 'warning' | 'error' | 'in
           <RefreshCw class="w-4 h-4" />
           Refresh
         </Button>
-        <Button variant="accent" size="sm" @click="router.push('/projects/new')">
+        <Button variant="accent" size="sm" @click="router.push('/projects/deploy-wizard')">
           <Plus class="w-4 h-4" />
           New Project
         </Button>

@@ -2,14 +2,17 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { useRouter } from 'vue-router'
 import { authService } from '@/services/auth'
-import type { User, JwtPayload } from '@/types'
 
-function decodeJwt(token: string): JwtPayload | null {
+const TOKEN_KEY = 'sentinel_admin_token'
+const REFRESH_KEY = 'sentinel_admin_refresh'
+
+function decodeJwt(token: string): Record<string, unknown> | null {
   try {
     const payload = token.split('.')[1]
     if (!payload) return null
-    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
-    return JSON.parse(decoded) as JwtPayload
+    const padded = payload + '='.repeat(4 - (payload.length % 4))
+    const decoded = atob(padded.replace(/-/g, '+').replace(/_/g, '/'))
+    return JSON.parse(decoded)
   } catch {
     return null
   }
@@ -18,12 +21,12 @@ function decodeJwt(token: string): JwtPayload | null {
 function isTokenExpired(token: string): boolean {
   const payload = decodeJwt(token)
   if (!payload?.exp) return true
-  return Date.now() >= payload.exp * 1000
+  return Date.now() >= (payload.exp as number) * 1000
 }
 
 export const useAuthStore = defineStore('auth', () => {
   const router = useRouter()
-  const user = ref<User | null>(null)
+  const user = ref<Record<string, unknown> | null>(null)
   const isLoading = ref(false)
   const sessionToken = ref<string | null>(null)
   const authStep = ref<'login' | 'otp'>('login')
@@ -35,9 +38,16 @@ export const useAuthStore = defineStore('auth', () => {
     isLoading.value = true
     try {
       const response = await authService.login(username, password)
-      sessionToken.value = response.session_token
+      // sessionToken comes as camelCase from backend (matching Stables)
+      sessionToken.value = response.sessionToken || (response as any).session_token || ''
       // Automatically request OTP after successful login
-      await authService.requestOtp(response.session_token)
+      if (sessionToken.value) {
+        const otpResp = await authService.requestOtp(sessionToken.value)
+        // Updated session token may come back
+        if (otpResp.sessionToken) {
+          sessionToken.value = otpResp.sessionToken
+        }
+      }
       authStep.value = 'otp'
     } finally {
       isLoading.value = false
@@ -49,7 +59,10 @@ export const useAuthStore = defineStore('auth', () => {
     if (!sessionToken.value) throw new Error('No session token')
     isLoading.value = true
     try {
-      await authService.requestOtp(sessionToken.value)
+      const resp = await authService.requestOtp(sessionToken.value)
+      if (resp.sessionToken) {
+        sessionToken.value = resp.sessionToken
+      }
     } finally {
       isLoading.value = false
     }
@@ -61,14 +74,24 @@ export const useAuthStore = defineStore('auth', () => {
     isLoading.value = true
     try {
       const response = await authService.verifyOtp(code, sessionToken.value)
-      localStorage.setItem('sentinel_admin_token', response.auth_token)
-      localStorage.setItem('sentinel_admin_refresh', response.refresh_token)
+      // Tokens come as camelCase from backend (matching Stables)
+      const authToken = response.authToken || (response as any).auth_token || ''
+      const refreshToken = response.refreshToken || (response as any).refresh_token || ''
+
+      if (!authToken) {
+        throw new Error('No auth token received')
+      }
+
+      localStorage.setItem(TOKEN_KEY, authToken)
+      if (refreshToken) {
+        localStorage.setItem(REFRESH_KEY, refreshToken)
+      }
 
       // Decode JWT and check is_admin
-      const payload = decodeJwt(response.auth_token)
+      const payload = decodeJwt(authToken)
       if (!payload?.is_admin) {
-        localStorage.removeItem('sentinel_admin_token')
-        localStorage.removeItem('sentinel_admin_refresh')
+        localStorage.removeItem(TOKEN_KEY)
+        localStorage.removeItem(REFRESH_KEY)
         throw new Error('Access denied. Admin privileges required.')
       }
 
@@ -86,13 +109,13 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     sessionToken.value = null
     authStep.value = 'login'
-    localStorage.removeItem('sentinel_admin_token')
-    localStorage.removeItem('sentinel_admin_refresh')
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(REFRESH_KEY)
     router.push('/login')
   }
 
   async function fetchUser(): Promise<void> {
-    const token = localStorage.getItem('sentinel_admin_token')
+    const token = localStorage.getItem(TOKEN_KEY)
     if (!token) {
       user.value = null
       return
@@ -101,41 +124,51 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = await authService.getMe(token)
     } catch {
       user.value = null
-      localStorage.removeItem('sentinel_admin_token')
-      localStorage.removeItem('sentinel_admin_refresh')
+      localStorage.removeItem(TOKEN_KEY)
+      localStorage.removeItem(REFRESH_KEY)
     }
   }
 
   async function hydrate(): Promise<void> {
-    const token = localStorage.getItem('sentinel_admin_token')
+    const token = localStorage.getItem(TOKEN_KEY)
     if (!token) return
 
     // Check if token is expired
     if (isTokenExpired(token)) {
-      const refreshToken = localStorage.getItem('sentinel_admin_refresh')
+      const refreshToken = localStorage.getItem(REFRESH_KEY)
       if (refreshToken) {
         try {
           const response = await authService.refresh(refreshToken)
-          localStorage.setItem('sentinel_admin_token', response.auth_token)
-          localStorage.setItem('sentinel_admin_refresh', response.refresh_token)
+          const newAuth = response.authToken || (response as any).auth_token || ''
+          const newRefresh = response.refreshToken || (response as any).refresh_token || ''
+          if (newAuth) {
+            localStorage.setItem(TOKEN_KEY, newAuth)
+            if (newRefresh) {
+              localStorage.setItem(REFRESH_KEY, newRefresh)
+            }
+          } else {
+            localStorage.removeItem(TOKEN_KEY)
+            localStorage.removeItem(REFRESH_KEY)
+            return
+          }
         } catch {
-          localStorage.removeItem('sentinel_admin_token')
-          localStorage.removeItem('sentinel_admin_refresh')
+          localStorage.removeItem(TOKEN_KEY)
+          localStorage.removeItem(REFRESH_KEY)
           return
         }
       } else {
-        localStorage.removeItem('sentinel_admin_token')
+        localStorage.removeItem(TOKEN_KEY)
         return
       }
     }
 
     // Verify is_admin claim
-    const currentToken = localStorage.getItem('sentinel_admin_token')
+    const currentToken = localStorage.getItem(TOKEN_KEY)
     if (currentToken) {
       const payload = decodeJwt(currentToken)
       if (!payload?.is_admin) {
-        localStorage.removeItem('sentinel_admin_token')
-        localStorage.removeItem('sentinel_admin_refresh')
+        localStorage.removeItem(TOKEN_KEY)
+        localStorage.removeItem(REFRESH_KEY)
         return
       }
     }
@@ -143,7 +176,6 @@ export const useAuthStore = defineStore('auth', () => {
     await fetchUser()
   }
 
-  /** Reset to login step (e.g., when user wants to go back from OTP) */
   function resetToLogin(): void {
     sessionToken.value = null
     authStep.value = 'login'

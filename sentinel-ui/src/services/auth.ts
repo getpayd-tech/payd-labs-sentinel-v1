@@ -1,54 +1,46 @@
 import api from './api'
-import type {
-  LoginResponse,
-  OtpResponse,
-  VerifyOtpResponse,
-  RefreshResponse,
-  User,
-} from '@/types'
 
 export const authService = {
-  /** Step 1: Login with username + password, returns session_token */
-  async login(username: string, password: string): Promise<LoginResponse> {
-    const { data } = await api.post<LoginResponse>('/auth/login', {
-      username,
-      password,
+  /** Step 1: Login with username + password, returns sessionToken */
+  async login(username: string, password: string) {
+    const { data } = await api.post('/auth/login', { username, password })
+    return data as { sessionToken: string; [key: string]: unknown }
+  },
+
+  /** Step 2: Request OTP to be sent (requires session token in header) */
+  async requestOtp(sessionToken: string) {
+    const { data } = await api.post('/auth/request-otp', {}, {
+      headers: { 'x-session-token': sessionToken },
     })
-    return data
+    return data as { sessionToken?: string; message?: string; [key: string]: unknown }
   },
 
-  /** Step 2: Request OTP to be sent (requires session_token) */
-  async requestOtp(sessionToken: string): Promise<OtpResponse> {
-    const { data } = await api.post<OtpResponse>(
-      '/auth/request-otp',
-      {},
-      { headers: { 'x-session-token': sessionToken } }
-    )
-    return data
-  },
-
-  /** Step 3: Verify OTP code, returns auth_token + refresh_token */
-  async verifyOtp(otp: string, sessionToken: string): Promise<VerifyOtpResponse> {
-    const { data } = await api.post<VerifyOtpResponse>('/auth/verify-otp', {
-      otp,
-      session_token: sessionToken,
+  /** Step 3: Verify OTP code (session token in header, otp in body) */
+  async verifyOtp(otp: string, sessionToken: string) {
+    const { data } = await api.post('/auth/verify-otp', { otp }, {
+      headers: { 'x-session-token': sessionToken },
     })
-    return data
+    return data as { authToken: string; refreshToken: string; [key: string]: unknown }
   },
 
-  /** Refresh auth_token using refresh_token */
-  async refresh(refreshToken: string): Promise<RefreshResponse> {
-    const { data } = await api.post<RefreshResponse>('/auth/refresh', {
-      refresh_token: refreshToken,
-    })
-    return data
+  /** Refresh auth token using refresh token */
+  async refresh(refreshToken: string) {
+    const { data } = await api.post('/auth/refresh', { refresh_token: refreshToken })
+    return data as { authToken: string; refreshToken: string; [key: string]: unknown }
   },
 
-  /** Get current user profile */
-  async getMe(token: string): Promise<User> {
-    const { data } = await api.get<User>('/auth/me', {
+  /** Get current user profile (token in header) */
+  async getMe(token: string) {
+    const { data } = await api.get('/auth/me', {
       headers: { 'x-auth-token': token },
     })
-    return data
+    return data as {
+      user_id: string
+      username: string
+      email: string
+      is_admin: boolean
+      first_name: string
+      last_name: string
+    }
   },
 }

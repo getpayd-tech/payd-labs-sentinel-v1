@@ -5,8 +5,7 @@ import logging
 
 from fastapi import APIRouter, Depends
 
-from app.auth import get_current_user
-from app.models.user import User
+from app.auth import require_admin
 from app.schemas.dashboard import ContainerInfo, DashboardStats, HealthOverview, SystemStats
 from app.services.docker_service import list_containers
 from app.services.metrics_service import get_system_metrics
@@ -17,7 +16,7 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 
 @router.get("/stats", response_model=DashboardStats)
-async def dashboard_stats(user: User = Depends(get_current_user)):
+async def dashboard_stats(claims: dict = Depends(require_admin)):
     """Return aggregated dashboard statistics: system metrics and container info."""
     # System metrics
     metrics = get_system_metrics()
@@ -52,7 +51,7 @@ async def dashboard_stats(user: User = Depends(get_current_user)):
 
 
 @router.get("/health", response_model=list[HealthOverview])
-async def health_overview(user: User = Depends(get_current_user)):
+async def health_overview(claims: dict = Depends(require_admin)):
     """Return a health summary for every container."""
     raw_containers = list_containers()
     overview: list[HealthOverview] = []

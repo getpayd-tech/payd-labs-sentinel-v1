@@ -14,13 +14,11 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import select, text
+from sqlalchemy import text
 
-from app.api.v1 import auth, dashboard, services, system
-from app.auth import hash_password
+from app.api.v1 import auth, audit, dashboard, database, deployments, domains, logs, projects, services, system
 from app.config import settings
 from app.database import async_session_factory, engine, Base
-from app.models.user import User
 from app.tasks.scheduler import start_scheduler, stop_scheduler
 
 # ---------------------------------------------------------------------------
@@ -63,9 +61,6 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables verified")
 
-    # Seed default admin user if no users exist
-    await _seed_admin_user()
-
     # Start background scheduler
     start_scheduler()
 
@@ -79,43 +74,13 @@ async def lifespan(app: FastAPI):
     logger.info("Sentinel API shut down cleanly")
 
 
-async def _seed_admin_user():
-    """Create a default admin user on first boot if no users exist."""
-    async with async_session_factory() as db:
-        result = await db.execute(select(User).limit(1))
-        existing = result.scalar_one_or_none()
-
-        if existing is not None:
-            logger.debug("Users already exist — skipping admin seed")
-            return
-
-        admin_username = settings.default_admin_username
-        admin_password = settings.default_admin_password
-
-        if not admin_password:
-            logger.warning(
-                "DEFAULT_ADMIN_PASSWORD is not set — skipping admin seed. "
-                "Set it in .env or environment to create the initial admin user."
-            )
-            return
-
-        admin = User(
-            username=admin_username,
-            password_hash=hash_password(admin_password),
-            role="admin",
-        )
-        db.add(admin)
-        await db.commit()
-        logger.info("Default admin user '%s' created", admin_username)
-
-
 # ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
 app = FastAPI(
     title="Sentinel API",
     description="Payd Labs Server Management Platform",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
     docs_url="/docs" if settings.app_env == "development" else None,
     redoc_url="/redoc" if settings.app_env == "development" else None,
@@ -191,6 +156,12 @@ app.include_router(auth.router, prefix="/api/v1", tags=["Auth"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["Dashboard"])
 app.include_router(services.router, prefix="/api/v1", tags=["Services"])
 app.include_router(system.router, prefix="/api/v1", tags=["System"])
+app.include_router(deployments.router, prefix="/api/v1", tags=["Deployments"])
+app.include_router(projects.router, prefix="/api/v1", tags=["Projects"])
+app.include_router(database.router, prefix="/api/v1", tags=["Database"])
+app.include_router(domains.router, prefix="/api/v1", tags=["Domains"])
+app.include_router(logs.router, prefix="/api/v1", tags=["Logs"])
+app.include_router(audit.router, prefix="/api/v1", tags=["Audit"])
 
 
 # ---------------------------------------------------------------------------

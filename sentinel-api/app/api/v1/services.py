@@ -6,9 +6,8 @@ import logging
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user, require_role
+from app.auth import require_admin
 from app.database import get_db
-from app.models.user import User
 from app.schemas.dashboard import ContainerInfo
 from app.schemas.service import ContainerAction, ContainerDetail, ContainerLogs, LogEntry
 from app.services.audit_service import log_action
@@ -27,14 +26,14 @@ router = APIRouter(prefix="/services", tags=["Services"])
 
 
 @router.get("/", response_model=list[ContainerInfo])
-async def list_services(user: User = Depends(get_current_user)):
+async def list_services(claims: dict = Depends(require_admin)):
     """List all Docker containers with basic info and stats."""
     raw = list_containers()
     return [ContainerInfo(**c) for c in raw]
 
 
 @router.get("/{name}", response_model=ContainerDetail)
-async def get_service(name: str, user: User = Depends(get_current_user)):
+async def get_service(name: str, claims: dict = Depends(require_admin)):
     """Get detailed information for a specific container."""
     data = get_container(name)
     return ContainerDetail(**data)
@@ -45,14 +44,14 @@ async def restart_service(
     name: str,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_role("admin", "operator")),
+    claims: dict = Depends(require_admin),
 ):
-    """Restart a container. Requires admin or operator role."""
+    """Restart a container. Requires admin access."""
     result = restart_container(name)
 
     await log_action(
         db,
-        user_id=user.id,
+        user_id=claims.get("sub"),
         action="container.restart",
         target=name,
         details=result,
@@ -67,14 +66,14 @@ async def stop_service(
     name: str,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_role("admin", "operator")),
+    claims: dict = Depends(require_admin),
 ):
-    """Stop a running container. Requires admin or operator role."""
+    """Stop a running container. Requires admin access."""
     result = stop_container(name)
 
     await log_action(
         db,
-        user_id=user.id,
+        user_id=claims.get("sub"),
         action="container.stop",
         target=name,
         details=result,
@@ -89,14 +88,14 @@ async def start_service(
     name: str,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_role("admin", "operator")),
+    claims: dict = Depends(require_admin),
 ):
-    """Start a stopped container. Requires admin or operator role."""
+    """Start a stopped container. Requires admin access."""
     result = start_container(name)
 
     await log_action(
         db,
-        user_id=user.id,
+        user_id=claims.get("sub"),
         action="container.start",
         target=name,
         details=result,
@@ -111,7 +110,7 @@ async def get_service_logs(
     name: str,
     tail: int = Query(default=100, ge=1, le=5000, description="Number of trailing log lines"),
     since: int | None = Query(default=None, description="Unix timestamp — only return logs after this time"),
-    user: User = Depends(get_current_user),
+    claims: dict = Depends(require_admin),
 ):
     """Retrieve container logs with optional tail count and time filter."""
     raw = get_container_logs(name, tail=tail, since=since)

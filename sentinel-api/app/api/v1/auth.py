@@ -1,102 +1,211 @@
-"""Authentication routes — login, token refresh, current user."""
+"""Authentication routes — Payd Auth proxy.
+
+All authentication is delegated to https://auth.payd.money.  These routes
+forward credentials / tokens and return the upstream responses.
+"""
 from __future__ import annotations
 
+import base64
+import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+import httpx
+from fastapi import APIRouter, HTTPException, Request
 
-from app.auth import (
-    create_access_token,
-    create_refresh_token,
-    decode_token,
-    get_current_user,
-    verify_password,
+from app.config import settings
+from app.schemas.auth import (
+    LoginRequest,
+    LoginResponse,
+    OtpRequest,
+    OtpRequestResponse,
+    RefreshRequest,
+    RefreshResponse,
+    UserProfile,
+    VerifyResponse,
 )
-from app.database import get_db
-from app.models.user import User
-from app.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, UserResponse
-from app.services.audit_service import log_action
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
+AUTH_BASE = settings.payd_auth_url
+TIMEOUT = 30.0
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+async def _forward(
+    method: str,
+    url: str,
+    *,
+    json_body: dict | None = None,
+    headers: dict | None = None,
+) -> httpx.Response:
+    """Forward a request to Payd Auth and return the raw response."""
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        response = await client.request(
+            method,
+            url,
+            json=json_body,
+            headers=headers or {},
+        )
+    return response
+
+
+def _raise_upstream(response: httpx.Response) -> None:
+    """Raise an HTTPException that mirrors the upstream error."""
+    try:
+        body = response.json()
+        detail = body.get("message") or body.get("detail") or body.get("error") or str(body)
+    except Exception:
+        detail = response.text or "Upstream auth error"
+    raise HTTPException(status_code=response.status_code, detail=detail)
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 
 @router.post("/login", response_model=LoginResponse)
-async def login(
-    body: LoginRequest,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-):
-    """Authenticate with username and password, returning JWT tokens."""
-    result = await db.execute(select(User).where(User.username == body.username))
-    user = result.scalar_one_or_none()
+async def login(body: LoginRequest):
+    """Forward username + password to Payd Auth, return session token.
 
-    if not user or not verify_password(body.password, user.password_hash):
-        logger.warning("Failed login attempt for username=%s", body.username)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password",
-        )
-
-    access_token = create_access_token(user.id, user.username, user.role)
-    refresh_token = create_refresh_token(user.id)
-
-    await log_action(
-        db,
-        user_id=user.id,
-        action="auth.login",
-        target=user.username,
-        ip_address=request.client.host if request.client else None,
+    The session token is used in subsequent OTP requests.
+    """
+    response = await _forward(
+        "POST",
+        f"{AUTH_BASE}/api/v2/login",
+        json_body={"username": body.username, "password": body.password},
     )
 
-    logger.info("User %s logged in", user.username)
-    return LoginResponse(access_token=access_token, refresh_token=refresh_token)
+    if response.status_code != 200:
+        _raise_upstream(response)
+
+    data = response.json()
+    session_token = data.get("sessionToken") or data.get("session_token") or ""
+    if not session_token:
+        raise HTTPException(status_code=502, detail="No session token in upstream response")
+
+    return LoginResponse(session_token=session_token)
 
 
-@router.post("/refresh", response_model=LoginResponse)
-async def refresh_token(
-    body: RefreshRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """Exchange a valid refresh token for a new access + refresh token pair."""
-    payload = decode_token(body.refresh_token)
+@router.post("/request-otp", response_model=OtpRequestResponse)
+async def request_otp(request: Request):
+    """Forward session token to Payd Auth to trigger OTP delivery."""
+    session_token = request.headers.get("x-session-token") or ""
+    if not session_token:
+        raise HTTPException(status_code=400, detail="Missing x-session-token header")
 
-    if payload.get("type") != "refresh":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token type — expected refresh token",
-        )
+    response = await _forward(
+        "POST",
+        f"{AUTH_BASE}/api/v2/request_otp",
+        headers={"x-session-token": session_token},
+    )
 
-    user_id = payload.get("sub")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token",
-        )
+    if response.status_code != 200:
+        _raise_upstream(response)
 
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
-
-    access_token = create_access_token(user.id, user.username, user.role)
-    new_refresh_token = create_refresh_token(user.id)
-
-    return LoginResponse(access_token=access_token, refresh_token=new_refresh_token)
+    data = response.json()
+    return OtpRequestResponse(
+        success=True,
+        message=data.get("message", "OTP sent"),
+    )
 
 
-@router.get("/me", response_model=UserResponse)
-async def me(user: User = Depends(get_current_user)):
-    """Return the currently authenticated user's profile."""
-    return UserResponse(
-        id=user.id,
-        username=user.username,
-        role=user.role,
-        created_at=user.created_at.isoformat() if user.created_at else "",
+@router.post("/verify-otp", response_model=VerifyResponse)
+async def verify_otp(body: OtpRequest, request: Request):
+    """Forward OTP + session token to Payd Auth, return auth + refresh tokens."""
+    session_token = request.headers.get("x-session-token") or ""
+    if not session_token:
+        raise HTTPException(status_code=400, detail="Missing x-session-token header")
+
+    response = await _forward(
+        "POST",
+        f"{AUTH_BASE}/api/v2/verify_otp",
+        json_body={"otp": body.otp},
+        headers={"x-session-token": session_token},
+    )
+
+    if response.status_code != 200:
+        _raise_upstream(response)
+
+    data = response.json()
+    auth_token = data.get("authToken") or data.get("auth_token") or ""
+    refresh_token = data.get("refreshToken") or data.get("refresh_token") or ""
+
+    if not auth_token:
+        raise HTTPException(status_code=502, detail="No auth token in upstream response")
+
+    return VerifyResponse(auth_token=auth_token, refresh_token=refresh_token)
+
+
+@router.post("/refresh", response_model=RefreshResponse)
+async def refresh(body: RefreshRequest):
+    """Forward refresh token to Payd Auth to renew the session."""
+    response = await _forward(
+        "POST",
+        f"{AUTH_BASE}/api/v2/renew_session",
+        json_body={"refresh_token": body.refresh_token},
+    )
+
+    if response.status_code != 200:
+        _raise_upstream(response)
+
+    data = response.json()
+    auth_token = data.get("authToken") or data.get("auth_token") or ""
+    refresh_token = data.get("refreshToken") or data.get("refresh_token") or ""
+
+    if not auth_token:
+        raise HTTPException(status_code=502, detail="No auth token in upstream response")
+
+    return RefreshResponse(auth_token=auth_token, refresh_token=refresh_token)
+
+
+@router.get("/me", response_model=UserProfile)
+async def me(request: Request):
+    """Fetch user profile from Payd Auth, verify admin status, return profile.
+
+    Requires ``x-auth-token`` header with a valid Payd Auth JWT.
+    """
+    auth_token = request.headers.get("x-auth-token") or ""
+    if not auth_token:
+        raise HTTPException(status_code=401, detail="Missing x-auth-token header")
+
+    # Decode JWT claims locally to check admin flag
+    try:
+        parts = auth_token.split(".")
+        if len(parts) != 3:
+            raise HTTPException(status_code=401, detail="Invalid token format")
+        payload = parts[1]
+        payload += "=" * (4 - len(payload) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token format")
+
+    if not claims.get("is_admin", False):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    # Fetch full profile from upstream
+    response = await _forward(
+        "GET",
+        f"{AUTH_BASE}/api/v1/user_profile",
+        headers={"x-auth-token": auth_token},
+    )
+
+    if response.status_code != 200:
+        _raise_upstream(response)
+
+    data = response.json()
+
+    return UserProfile(
+        user_id=str(data.get("user_id") or data.get("id") or claims.get("sub", "")),
+        username=data.get("username") or claims.get("username", ""),
+        email=data.get("email"),
+        phone=data.get("phone"),
+        full_name=data.get("full_name") or data.get("fullName"),
+        is_admin=claims.get("is_admin", False),
+        account_status=data.get("account_status") or data.get("status"),
+        created_at=data.get("created_at"),
     )

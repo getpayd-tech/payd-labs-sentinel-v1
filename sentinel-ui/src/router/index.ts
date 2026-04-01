@@ -89,10 +89,27 @@ const router = createRouter({
   },
 })
 
-// Auth guard
+function decodeJwt(token: string): Record<string, unknown> | null {
+  try {
+    const payload = token.split('.')[1]
+    if (!payload) return null
+    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+    return JSON.parse(decoded)
+  } catch {
+    return null
+  }
+}
+
+// Auth guard — check sentinel_admin_token + is_admin claim
 router.beforeEach((to, _from, next) => {
-  const token = localStorage.getItem('access_token')
-  const isAuthenticated = !!token
+  const token = localStorage.getItem('sentinel_admin_token')
+  let isAuthenticated = false
+
+  if (token) {
+    const payload = decodeJwt(token)
+    const isExpired = payload?.exp ? Date.now() >= (payload.exp as number) * 1000 : true
+    isAuthenticated = !isExpired && payload?.is_admin === true
+  }
 
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/login')

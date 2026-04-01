@@ -17,10 +17,9 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
 
-    # JWT
-    jwt_algorithm: str = "HS256"
-    jwt_access_expire_minutes: int = 60
-    jwt_refresh_expire_days: int = 7
+    # Payd Auth
+    payd_auth_url: str = "https://auth.payd.money"
+    payd_api_url: str = "https://api.payd.money/v1"
 
     # Managed PostgreSQL (for database admin features)
     pg_admin_host: str = ""
@@ -32,10 +31,6 @@ class Settings(BaseSettings):
 
     # Encryption key for env var storage (Fernet)
     encryption_key: str = ""
-
-    # Default admin credentials (set on first boot)
-    default_admin_username: str = "admin"
-    default_admin_password: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:

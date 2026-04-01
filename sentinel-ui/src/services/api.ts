@@ -8,12 +8,12 @@ const api = axios.create({
   },
 })
 
-// Request interceptor: add Bearer token
+// Request interceptor: add x-auth-token header (Payd Auth pattern)
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token')
+    const token = localStorage.getItem('sentinel_admin_token')
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+      config.headers['x-auth-token'] = token
     }
     return config
   },
@@ -25,8 +25,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
+      localStorage.removeItem('sentinel_admin_token')
+      localStorage.removeItem('sentinel_admin_refresh')
       if (window.location.pathname !== '/login') {
         window.location.href = '/login'
       }

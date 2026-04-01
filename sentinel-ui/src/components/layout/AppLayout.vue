@@ -1,29 +1,83 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Menu, X } from 'lucide-vue-next'
+import { useAuthStore } from '@/stores/auth'
+import { useThemeStore } from '@/stores/theme'
 import SideNavbar from './SideNavbar.vue'
+import { Menu, X, Sun, Moon, LogOut } from 'lucide-vue-next'
 
-const sidebarCollapsed = ref(false)
+const LOGO_LIGHT = 'https://res.cloudinary.com/dadkir6u2/image/upload/v1767808544/payd_logo_for_light_mode_scwwdc.png'
+const LOGO_DARK = 'https://res.cloudinary.com/dadkir6u2/image/upload/v1767808543/payd_logo_for_dark_mode_otv7uv.png'
+
+const authStore = useAuthStore()
+const themeStore = useThemeStore()
 const mobileMenuOpen = ref(false)
-
-function toggleCollapse() {
-  sidebarCollapsed.value = !sidebarCollapsed.value
-}
 
 function toggleMobile() {
   mobileMenuOpen.value = !mobileMenuOpen.value
 }
+
+function closeMobile() {
+  mobileMenuOpen.value = false
+}
+
+function handleLogout() {
+  authStore.logout()
+}
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden bg-gray-50 dark:bg-neutral-950">
-    <!-- Desktop sidebar -->
-    <div class="hidden lg:flex">
-      <SideNavbar
-        :collapsed="sidebarCollapsed"
-        @toggle-collapse="toggleCollapse"
+  <div class="min-h-screen bg-[var(--color-surface)]">
+    <!-- Fixed Header (h-14) -->
+    <header class="fixed top-0 left-0 right-0 z-40 h-14 bg-white/80 dark:bg-[#0f1419]/80 backdrop-blur-md border-b border-[var(--color-border)] flex items-center px-4 lg:px-6">
+      <!-- Left: hamburger (mobile) + logo + "Sentinel" + "Admin" badge -->
+      <button
+        class="lg:hidden p-2 -ml-2 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-tertiary)]"
+        @click="toggleMobile"
+      >
+        <Menu v-if="!mobileMenuOpen" :size="20" />
+        <X v-else :size="20" />
+      </button>
+
+      <img
+        :src="themeStore.isDark ? LOGO_DARK : LOGO_LIGHT"
+        alt="Payd"
+        class="h-5 w-auto ml-2 lg:ml-0"
       />
-    </div>
+
+      <span class="font-heading font-semibold text-[var(--color-text)] ml-2">
+        Sentinel
+      </span>
+
+      <span class="hidden sm:inline-flex items-center bg-accent/10 text-accent-dark dark:text-accent-light px-2 py-0.5 rounded-md text-[10px] font-semibold font-heading ml-2">
+        Admin
+      </span>
+
+      <div class="flex-1" />
+
+      <!-- Right: theme toggle + logout -->
+      <button
+        class="p-2 rounded-lg text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-tertiary)]"
+        title="Toggle theme"
+        @click="themeStore.toggle()"
+      >
+        <Moon v-if="!themeStore.isDark" :size="16" />
+        <Sun v-else :size="16" />
+      </button>
+      <button
+        class="p-2 rounded-lg text-[var(--color-text-tertiary)] hover:text-red-500 hover:bg-[var(--color-surface-tertiary)] ml-1"
+        title="Logout"
+        @click="handleLogout"
+      >
+        <LogOut :size="16" />
+      </button>
+    </header>
+
+    <!-- Fixed Sidebar (w-56, desktop only) -->
+    <aside
+      class="fixed top-0 bottom-0 left-0 w-56 pt-14 bg-[var(--color-surface)] border-r border-[var(--color-border)] z-30 transition-transform duration-200 hidden lg:block"
+    >
+      <SideNavbar @navigate="closeMobile" />
+    </aside>
 
     <!-- Mobile sidebar overlay -->
     <Transition
@@ -36,36 +90,27 @@ function toggleMobile() {
     >
       <div
         v-if="mobileMenuOpen"
-        class="fixed inset-0 z-40 lg:hidden"
+        class="fixed inset-0 z-50 lg:hidden"
       >
-        <div class="absolute inset-0 bg-kPrimary/30 dark:bg-black/50 backdrop-blur-sm" @click="toggleMobile" />
-        <div class="relative z-50 h-full w-60 animate-slide-in-left">
-          <SideNavbar @toggle-collapse="toggleMobile" />
+        <!-- Backdrop -->
+        <div
+          class="absolute inset-0 bg-black/30 dark:bg-black/50 backdrop-blur-sm"
+          @click="closeMobile"
+        />
+        <!-- Sidebar panel -->
+        <div class="relative z-50 h-full w-56 pt-14 bg-[var(--color-surface)] border-r border-[var(--color-border)] animate-slide-in-left">
+          <SideNavbar @navigate="closeMobile" />
         </div>
       </div>
     </Transition>
 
-    <!-- Main content -->
-    <div class="flex-1 flex flex-col overflow-hidden">
-      <!-- Mobile header -->
-      <header class="lg:hidden flex items-center justify-between h-14 px-4 bg-white dark:bg-neutral-950 border-b border-kPrimary/10 dark:border-neutral-800 shrink-0">
-        <button
-          class="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
-          @click="toggleMobile"
-        >
-          <Menu v-if="!mobileMenuOpen" class="w-5 h-5" />
-          <X v-else class="w-5 h-5" />
-        </button>
-        <span class="font-heading font-semibold text-kPrimary dark:text-white">Sentinel</span>
-        <div class="w-9" />
-      </header>
-
-      <!-- Scrollable page content -->
-      <main class="flex-1 overflow-y-auto custom-scrollbar">
-        <div class="page-container">
+    <!-- Main content area -->
+    <main class="pt-14 lg:pl-56 min-h-screen">
+      <div class="p-4 lg:p-6">
+        <div class="max-w-7xl mx-auto">
           <slot />
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   </div>
 </template>

@@ -1,88 +1,49 @@
+"""Payd Auth integration — admin verification dependency.
+
+Decodes JWT claims from x-auth-token header and verifies admin status.
+Payd Auth (auth.payd.money) handles actual token validation; we only
+decode the payload to extract claims for authorization decisions.
+"""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+import base64
+import json
+import logging
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
-from passlib.context import CryptContext
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import HTTPException, Request
 
-from app.config import settings
-from app.database import get_db
-from app.models.user import User
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-security = HTTPBearer()
+logger = logging.getLogger(__name__)
 
 
-def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+async def require_admin(request: Request) -> dict:
+    """Extract and verify admin JWT from x-auth-token header.
 
+    Decodes the JWT payload (base64, no cryptographic verification — Payd Auth
+    handles that upstream). Checks the ``is_admin`` claim and returns the full
+    claims dict so downstream handlers can access user_id, username, etc.
 
-def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    Raises:
+        HTTPException 401: Missing or malformed token.
+        HTTPException 403: Token is valid but user is not an admin.
+    """
+    token = request.headers.get("x-auth-token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing auth token")
 
-
-def create_access_token(user_id: str, username: str, role: str) -> str:
-    expires = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_access_expire_minutes)
-    payload = {
-        "sub": user_id,
-        "username": username,
-        "role": role,
-        "exp": expires,
-        "type": "access",
-    }
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
-
-
-def create_refresh_token(user_id: str) -> str:
-    expires = datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_expire_days)
-    payload = {
-        "sub": user_id,
-        "exp": expires,
-        "type": "refresh",
-    }
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
-
-
-def decode_token(token: str) -> dict:
     try:
-        return jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
-    except JWTError as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+        parts = token.split(".")
+        if len(parts) != 3:
+            raise HTTPException(status_code=401, detail="Invalid token format")
 
+        payload = parts[1]
+        # Pad base64 to a multiple of 4
+        payload += "=" * (4 - len(payload) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+    except (json.JSONDecodeError, UnicodeDecodeError, Exception) as exc:
+        logger.warning("Failed to decode auth token: %s", exc)
+        raise HTTPException(status_code=401, detail="Invalid token format")
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    payload = decode_token(credentials.credentials)
-    if payload.get("type") != "access":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+    if not claims.get("is_admin", False):
+        raise HTTPException(status_code=403, detail="Admin access required")
 
-    user_id = payload.get("sub")
-    if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-
-    return user
-
-
-def require_role(*roles: str):
-    """Dependency that checks user has one of the required roles."""
-
-    async def check_role(user: User = Depends(get_current_user)) -> User:
-        if user.role not in roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Requires role: {', '.join(roles)}",
-            )
-        return user
-
-    return check_role
+    return claims

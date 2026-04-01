@@ -32,13 +32,16 @@ watch(
 </script>
 
 <template>
-  <div class="min-h-screen">
+  <div class="min-h-screen bg-gray-50 dark:bg-neutral-950">
+    <!-- Route loading bar -->
     <div v-if="isRouteLoading" class="route-loading-bar" />
 
+    <!-- Blank layout (login, 404) -->
     <template v-if="route.meta.layout === 'blank'">
       <router-view />
     </template>
 
+    <!-- Authenticated layout with header + sidebar -->
     <template v-else>
       <AppLayout>
         <router-view />

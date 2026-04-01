@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/logs", tags=["Logs"])
 
 
-@router.get("/", response_model=AggregatedLogs)
+@router.get("", response_model=AggregatedLogs)
 async def get_logs(
     containers: Optional[str] = Query(
         None,

@@ -48,7 +48,7 @@ class AuditLogList(BaseModel):
 # Routes
 # ---------------------------------------------------------------------------
 
-@router.get("/", response_model=AuditLogList)
+@router.get("", response_model=AuditLogList)
 async def get_audit_logs(
     action: Optional[str] = Query(None, description="Filter by action (e.g. 'deployment.trigger')"),
     target: Optional[str] = Query(None, description="Filter by target"),

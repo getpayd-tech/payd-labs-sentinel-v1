@@ -55,7 +55,7 @@ def _deployment_to_response(dep, project_name: str = "") -> DeploymentResponse:
 # Routes
 # ---------------------------------------------------------------------------
 
-@router.get("/", response_model=DeploymentList)
+@router.get("", response_model=DeploymentList)
 async def list_all_deployments(
     project_id: str | None = Query(None, description="Filter by project ID"),
     page: int = Query(1, ge=1),

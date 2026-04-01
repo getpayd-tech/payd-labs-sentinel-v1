@@ -96,7 +96,7 @@ async def scan_projects(
 # CRUD
 # ---------------------------------------------------------------------------
 
-@router.get("/", response_model=ProjectList)
+@router.get("", response_model=ProjectList)
 async def list_all_projects(
     db: AsyncSession = Depends(get_db),
     claims: dict = Depends(require_admin),
@@ -109,7 +109,7 @@ async def list_all_projects(
     )
 
 
-@router.post("/", response_model=ProjectResponse, status_code=201)
+@router.post("", response_model=ProjectResponse, status_code=201)
 async def create_new_project(
     body: ProjectCreate,
     request: Request,

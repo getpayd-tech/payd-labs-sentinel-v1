@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/services", tags=["Services"])
 
 
-@router.get("/", response_model=list[ContainerInfo])
+@router.get("", response_model=list[ContainerInfo])
 async def list_services(claims: dict = Depends(require_admin)):
     """List all Docker containers with basic info and cached stats."""
     raw = await asyncio.to_thread(list_containers)

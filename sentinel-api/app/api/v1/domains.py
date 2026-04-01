@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/domains", tags=["Domains"])
 
 
-@router.get("/", response_model=DomainList)
+@router.get("", response_model=DomainList)
 async def list_domains(claims: dict = Depends(require_admin)):
     """List all domain routes parsed from the Caddyfile."""
     blocks = parse_caddyfile()
@@ -37,7 +37,7 @@ async def list_domains(claims: dict = Depends(require_admin)):
     return DomainList(items=items, total=len(items))
 
 
-@router.post("/", response_model=DomainInfo, status_code=201)
+@router.post("", response_model=DomainInfo, status_code=201)
 async def create_domain(
     body: DomainCreate,
     request: Request,

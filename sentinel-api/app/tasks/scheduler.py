@@ -1,8 +1,4 @@
-"""APScheduler setup for background tasks.
-
-Currently a placeholder that initialises the scheduler infrastructure.
-Tasks such as periodic metrics snapshots can be registered here.
-"""
+"""APScheduler setup for background tasks."""
 from __future__ import annotations
 
 import logging
@@ -16,19 +12,16 @@ scheduler = AsyncIOScheduler()
 
 def start_scheduler():
     """Configure and start the background scheduler."""
-    # ------------------------------------------------------------------
-    # Register recurring jobs here. Example:
-    #
-    # from app.tasks.metrics_collector import collect_metrics_snapshot
-    # scheduler.add_job(
-    #     collect_metrics_snapshot,
-    #     "interval",
-    #     seconds=60,
-    #     id="metrics_snapshot",
-    #     replace_existing=True,
-    #     max_instances=1,
-    # )
-    # ------------------------------------------------------------------
+    from app.services.docker_service import refresh_stats_cache
+
+    scheduler.add_job(
+        refresh_stats_cache,
+        "interval",
+        seconds=30,
+        id="stats_cache_refresh",
+        replace_existing=True,
+        max_instances=1,
+    )
 
     scheduler.start()
     logger.info("Background scheduler started with %d jobs", len(scheduler.get_jobs()))

@@ -1,6 +1,7 @@
 """Dashboard routes — aggregated stats and health overview."""
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends
@@ -18,8 +19,12 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 @router.get("/stats", response_model=DashboardStats)
 async def dashboard_stats(claims: dict = Depends(require_admin)):
     """Return aggregated dashboard statistics: system metrics and container info."""
-    # System metrics
-    metrics = get_system_metrics()
+    # Both calls are blocking — run in threads to keep the event loop free
+    metrics, raw_containers = await asyncio.gather(
+        asyncio.to_thread(get_system_metrics),
+        asyncio.to_thread(list_containers),
+    )
+
     system = SystemStats(
         cpu_percent=metrics.cpu_percent,
         memory_used_mb=metrics.memory_used_mb,
@@ -31,8 +36,6 @@ async def dashboard_stats(claims: dict = Depends(require_admin)):
         uptime_seconds=metrics.uptime_seconds,
     )
 
-    # Container info
-    raw_containers = list_containers()
     containers = [ContainerInfo(**c) for c in raw_containers]
 
     total = len(containers)
@@ -53,7 +56,7 @@ async def dashboard_stats(claims: dict = Depends(require_admin)):
 @router.get("/health", response_model=list[HealthOverview])
 async def health_overview(claims: dict = Depends(require_admin)):
     """Return a health summary for every container."""
-    raw_containers = list_containers()
+    raw_containers = await asyncio.to_thread(list_containers)
     overview: list[HealthOverview] = []
 
     for c in raw_containers:

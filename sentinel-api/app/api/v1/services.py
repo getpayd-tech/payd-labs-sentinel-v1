@@ -1,6 +1,7 @@
 """Service management routes — container CRUD, lifecycle actions, and logs."""
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -27,15 +28,15 @@ router = APIRouter(prefix="/services", tags=["Services"])
 
 @router.get("/", response_model=list[ContainerInfo])
 async def list_services(claims: dict = Depends(require_admin)):
-    """List all Docker containers with basic info and stats."""
-    raw = list_containers()
+    """List all Docker containers with basic info and cached stats."""
+    raw = await asyncio.to_thread(list_containers)
     return [ContainerInfo(**c) for c in raw]
 
 
 @router.get("/{name}", response_model=ContainerDetail)
 async def get_service(name: str, claims: dict = Depends(require_admin)):
     """Get detailed information for a specific container."""
-    data = get_container(name)
+    data = await asyncio.to_thread(get_container, name)
     return ContainerDetail(**data)
 
 
@@ -47,7 +48,7 @@ async def restart_service(
     claims: dict = Depends(require_admin),
 ):
     """Restart a container. Requires admin access."""
-    result = restart_container(name)
+    result = await asyncio.to_thread(restart_container, name)
 
     await log_action(
         db,
@@ -69,7 +70,7 @@ async def stop_service(
     claims: dict = Depends(require_admin),
 ):
     """Stop a running container. Requires admin access."""
-    result = stop_container(name)
+    result = await asyncio.to_thread(stop_container, name)
 
     await log_action(
         db,
@@ -91,7 +92,7 @@ async def start_service(
     claims: dict = Depends(require_admin),
 ):
     """Start a stopped container. Requires admin access."""
-    result = start_container(name)
+    result = await asyncio.to_thread(start_container, name)
 
     await log_action(
         db,
@@ -113,7 +114,7 @@ async def get_service_logs(
     claims: dict = Depends(require_admin),
 ):
     """Retrieve container logs with optional tail count and time filter."""
-    raw = get_container_logs(name, tail=tail, since=since)
+    raw = await asyncio.to_thread(get_container_logs, name, tail, since)
     return ContainerLogs(
         container_name=raw["container_name"],
         logs=[LogEntry(**entry) for entry in raw["logs"]],

@@ -1,6 +1,7 @@
 """Aggregated log routes — fetch and filter logs across containers."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Optional
 
@@ -36,7 +37,8 @@ async def get_logs(
     if containers:
         container_list = [c.strip() for c in containers.split(",") if c.strip()]
 
-    data = get_aggregated_logs(
+    data = await asyncio.to_thread(
+        get_aggregated_logs,
         containers=container_list,
         search=search,
         level=level,

@@ -64,6 +64,14 @@ async def lifespan(app: FastAPI):
     # Start background scheduler
     start_scheduler()
 
+    # Warm the stats cache so the first dashboard load is instant
+    try:
+        from app.services.docker_service import refresh_stats_cache
+        await refresh_stats_cache()
+        logger.info("Stats cache warmed on startup")
+    except Exception as exc:
+        logger.warning("Stats cache warm-up failed (non-fatal): %s", exc)
+
     logger.info("Sentinel API ready")
 
     yield

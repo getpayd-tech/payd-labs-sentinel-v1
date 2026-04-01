@@ -2,9 +2,27 @@
 
 Wraps the Docker SDK to provide container listing, inspection, lifecycle
 management, log retrieval, and real-time stats for the Sentinel dashboard.
+
+Performance note
+----------------
+Docker's `container.stats(stream=False)` is a blocking call that takes ~1s per
+container (Docker needs two CPU samples). With 11 containers that's 11+ seconds
+of *event-loop blocking* if called inline from an async handler.
+
+Solution
+--------
+* `_stats_cache` — module-level dict updated by `refresh_stats_cache()`.
+* `refresh_stats_cache()` — async function that fetches stats for ALL running
+  containers *concurrently* (each in its own thread via asyncio.to_thread),
+  completing in ~1s regardless of container count.
+* `list_containers()` — fast sync function: container metadata only, no stats
+  calls. Merges with `_stats_cache` which is populated by the background job.
+* All routes call blocking Docker functions via `asyncio.to_thread()` to keep
+  the event loop free.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -13,6 +31,12 @@ import docker
 from docker.errors import DockerException, NotFound, APIError
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# In-memory stats cache — updated every 30s by the background scheduler.
+# Key: container name  Value: stats dict (cpu_percent, memory_*, network_*)
+# ---------------------------------------------------------------------------
+_stats_cache: dict[str, dict[str, float]] = {}
 
 
 def _get_client() -> docker.DockerClient:
@@ -90,15 +114,82 @@ def _get_health(container_attrs: dict) -> str | None:
     return health.get("Status") if health else None
 
 
+def _fetch_single_stats(container) -> tuple[str, dict[str, float]]:
+    """Fetch stats for one container (blocking — meant to run in a thread)."""
+    try:
+        stats = container.stats(stream=False)
+        cpu = _calculate_cpu_percent(stats)
+        mem_used, mem_limit = _calculate_memory(stats)
+        rx, tx = _calculate_network(stats)
+        return container.name, {
+            "cpu_percent": cpu,
+            "memory_usage_mb": mem_used,
+            "memory_limit_mb": mem_limit,
+            "network_rx_mb": rx,
+            "network_tx_mb": tx,
+        }
+    except Exception as exc:
+        logger.debug("Stats fetch failed for %s: %s", container.name, exc)
+        return container.name, {
+            "cpu_percent": 0.0,
+            "memory_usage_mb": 0.0,
+            "memory_limit_mb": 0.0,
+            "network_rx_mb": 0.0,
+            "network_tx_mb": 0.0,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Background cache refresh (called by scheduler every 30s + on startup)
+# ---------------------------------------------------------------------------
+
+async def refresh_stats_cache() -> None:
+    """Collect stats for all running containers *concurrently* and update cache.
+
+    Uses asyncio.gather + asyncio.to_thread so all N containers are fetched in
+    parallel. Total time ≈ 1s (single stats call duration) regardless of N.
+    """
+    global _stats_cache
+    client = _get_client()
+    try:
+        running = client.containers.list()  # running only
+        if not running:
+            _stats_cache = {}
+            return
+
+        results = await asyncio.gather(
+            *(asyncio.to_thread(_fetch_single_stats, c) for c in running),
+            return_exceptions=True,
+        )
+
+        new_cache: dict[str, dict[str, float]] = {}
+        for result in results:
+            if isinstance(result, tuple):
+                name, stats = result
+                new_cache[name] = stats
+
+        _stats_cache = new_cache
+        logger.debug("Stats cache refreshed for %d containers", len(new_cache))
+    except Exception as exc:
+        logger.warning("Stats cache refresh failed: %s", exc)
+    finally:
+        client.close()
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
 
 def list_containers() -> list[dict[str, Any]]:
-    """List all Docker containers with basic info and stats.
+    """List all Docker containers with metadata + cached stats.
 
-    Returns a list of dicts matching the ContainerInfo schema fields.
+    This function does NOT call container.stats() — it reads from the
+    module-level _stats_cache populated by refresh_stats_cache().
+    As a result it completes in milliseconds.
+
+    Call via asyncio.to_thread() from async handlers to keep the event loop
+    free during the container list() HTTP call to Docker.
     """
     client = _get_client()
     containers = []
@@ -110,6 +201,8 @@ def list_containers() -> list[dict[str, Any]]:
             network_settings = attrs.get("NetworkSettings", {})
             state = attrs.get("State", {})
 
+            cached = _stats_cache.get(container.name, {})
+
             info: dict[str, Any] = {
                 "name": container.name,
                 "status": container.status,
@@ -118,26 +211,12 @@ def list_containers() -> list[dict[str, Any]]:
                 "created": attrs.get("Created", ""),
                 "started_at": state.get("StartedAt"),
                 "ports": _parse_ports(network_settings.get("Ports")),
-                "cpu_percent": 0.0,
-                "memory_usage_mb": 0.0,
-                "memory_limit_mb": 0.0,
-                "network_rx_mb": 0.0,
-                "network_tx_mb": 0.0,
+                "cpu_percent": cached.get("cpu_percent", 0.0),
+                "memory_usage_mb": cached.get("memory_usage_mb", 0.0),
+                "memory_limit_mb": cached.get("memory_limit_mb", 0.0),
+                "network_rx_mb": cached.get("network_rx_mb", 0.0),
+                "network_tx_mb": cached.get("network_tx_mb", 0.0),
             }
-
-            # Grab stats for running containers (non-blocking, single-shot)
-            if container.status == "running":
-                try:
-                    stats = container.stats(stream=False)
-                    info["cpu_percent"] = _calculate_cpu_percent(stats)
-                    mem_used, mem_limit = _calculate_memory(stats)
-                    info["memory_usage_mb"] = mem_used
-                    info["memory_limit_mb"] = mem_limit
-                    rx, tx = _calculate_network(stats)
-                    info["network_rx_mb"] = rx
-                    info["network_tx_mb"] = tx
-                except Exception as exc:
-                    logger.debug("Failed to get stats for %s: %s", container.name, exc)
 
             containers.append(info)
     except DockerException as exc:
@@ -153,6 +232,7 @@ def get_container(name: str) -> dict[str, Any]:
     """Get detailed information for a single container.
 
     Returns a dict matching the ContainerDetail schema fields.
+    Uses cached stats — does NOT call container.stats() inline.
     """
     client = _get_client()
     try:
@@ -160,7 +240,6 @@ def get_container(name: str) -> dict[str, Any]:
         attrs = container.attrs or {}
         config = attrs.get("Config", {})
         state = attrs.get("State", {})
-        host_config = attrs.get("HostConfig", {})
         network_settings = attrs.get("NetworkSettings", {})
 
         # Extract volume mounts
@@ -173,6 +252,8 @@ def get_container(name: str) -> dict[str, Any]:
         # Extract environment variable keys only (no values for security)
         env_vars = config.get("Env", [])
         env_keys = [e.split("=", 1)[0] for e in env_vars if "=" in e]
+
+        cached = _stats_cache.get(name, {})
 
         detail: dict[str, Any] = {
             "name": container.name,
@@ -190,20 +271,10 @@ def get_container(name: str) -> dict[str, Any]:
             "volumes": volume_list,
             "env_keys": env_keys,
             "labels": config.get("Labels", {}),
-            "cpu_percent": 0.0,
-            "memory_usage_mb": 0.0,
-            "memory_limit_mb": 0.0,
+            "cpu_percent": cached.get("cpu_percent", 0.0),
+            "memory_usage_mb": cached.get("memory_usage_mb", 0.0),
+            "memory_limit_mb": cached.get("memory_limit_mb", 0.0),
         }
-
-        if container.status == "running":
-            try:
-                stats = container.stats(stream=False)
-                detail["cpu_percent"] = _calculate_cpu_percent(stats)
-                mem_used, mem_limit = _calculate_memory(stats)
-                detail["memory_usage_mb"] = mem_used
-                detail["memory_limit_mb"] = mem_limit
-            except Exception as exc:
-                logger.debug("Failed to get stats for %s: %s", name, exc)
 
         return detail
     except NotFound:
@@ -271,15 +342,7 @@ def get_container_logs(
     tail: int = 100,
     since: int | None = None,
 ) -> dict[str, Any]:
-    """Retrieve container logs, parsed into structured entries.
-
-    Args:
-        name: Container name.
-        tail: Number of trailing lines to return.
-        since: Unix timestamp; only return logs since this time.
-
-    Returns a dict matching the ContainerLogs schema.
-    """
+    """Retrieve container logs, parsed into structured entries."""
     client = _get_client()
     try:
         container = client.containers.get(name)
@@ -293,7 +356,6 @@ def get_container_logs(
         if since is not None:
             kwargs["since"] = since
 
-        # Get stdout and stderr separately so we can tag the stream
         stdout_raw = container.logs(stream=False, stderr=False, **{k: v for k, v in kwargs.items() if k != "stderr"})
         stderr_raw = container.logs(stream=False, stdout=False, **{k: v for k, v in kwargs.items() if k != "stdout"})
 
@@ -307,7 +369,6 @@ def get_container_logs(
             ts, msg = _parse_log_line(line)
             entries.append({"timestamp": ts, "message": msg, "stream": "stderr"})
 
-        # Sort by timestamp
         entries.sort(key=lambda e: e["timestamp"])
 
         return {
@@ -326,9 +387,7 @@ def get_container_logs(
 
 def _parse_log_line(line: str) -> tuple[str, str]:
     """Split a Docker log line (with timestamps enabled) into (timestamp, message)."""
-    # Docker timestamp format: 2024-01-15T10:30:45.123456789Z
     if line and len(line) > 30 and line[4] == "-" and "T" in line[:25]:
-        # Try to split at the first space after the timestamp
         space_idx = line.find(" ")
         if space_idx > 0:
             return line[:space_idx], line[space_idx + 1:]
@@ -336,38 +395,16 @@ def _parse_log_line(line: str) -> tuple[str, str]:
 
 
 def get_container_stats(name: str) -> dict[str, Any]:
-    """Get real-time CPU and memory stats for a container.
+    """Get stats for a container from the cache.
 
-    Returns a dict with cpu_percent, memory_usage_mb, memory_limit_mb,
-    network_rx_mb, network_tx_mb.
+    Returns cached values — does not make a live Docker stats call.
+    For a live call use refresh_stats_cache() then read from cache.
     """
-    client = _get_client()
-    try:
-        container = client.containers.get(name)
-        if container.status != "running":
-            return {
-                "cpu_percent": 0.0,
-                "memory_usage_mb": 0.0,
-                "memory_limit_mb": 0.0,
-                "network_rx_mb": 0.0,
-                "network_tx_mb": 0.0,
-            }
-
-        stats = container.stats(stream=False)
-        mem_used, mem_limit = _calculate_memory(stats)
-        rx, tx = _calculate_network(stats)
-
-        return {
-            "cpu_percent": _calculate_cpu_percent(stats),
-            "memory_usage_mb": mem_used,
-            "memory_limit_mb": mem_limit,
-            "network_rx_mb": rx,
-            "network_tx_mb": tx,
-        }
-    except NotFound:
-        raise ValueError(f"Container '{name}' not found")
-    except DockerException as exc:
-        logger.error("Failed to get stats for %s: %s", name, exc)
-        raise
-    finally:
-        client.close()
+    cached = _stats_cache.get(name, {})
+    return {
+        "cpu_percent": cached.get("cpu_percent", 0.0),
+        "memory_usage_mb": cached.get("memory_usage_mb", 0.0),
+        "memory_limit_mb": cached.get("memory_limit_mb", 0.0),
+        "network_rx_mb": cached.get("network_rx_mb", 0.0),
+        "network_tx_mb": cached.get("network_tx_mb", 0.0),
+    }

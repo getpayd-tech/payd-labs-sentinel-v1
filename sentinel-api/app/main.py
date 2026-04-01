@@ -90,6 +90,7 @@ app = FastAPI(
     description="Payd Labs Server Management Platform",
     version="0.2.0",
     lifespan=lifespan,
+    redirect_slashes=False,
     docs_url="/docs" if settings.app_env == "development" else None,
     redoc_url="/redoc" if settings.app_env == "development" else None,
 )

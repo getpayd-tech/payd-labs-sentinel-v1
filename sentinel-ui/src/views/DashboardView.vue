@@ -53,7 +53,7 @@ const containers = computed(() => stats.value?.containers ?? [])
 
     <!-- Error state -->
     <div v-else-if="isError" class="card p-8 text-center">
-      <p class="text-gray-500 dark:text-gray-400">Failed to load dashboard data. Please try again.</p>
+      <p class="text-text-secondary">Failed to load dashboard data. Please try again.</p>
     </div>
 
     <!-- Content -->
@@ -89,7 +89,7 @@ const containers = computed(() => stats.value?.containers ?? [])
 
       <!-- Services grid -->
       <div class="mb-4">
-        <h2 class="text-lg font-heading font-semibold text-kPrimary dark:text-white mb-3">
+        <h2 class="text-lg font-heading font-semibold text-text mb-3">
           Containers
         </h2>
       </div>
@@ -106,7 +106,7 @@ const containers = computed(() => stats.value?.containers ?? [])
       </div>
       <div v-else class="card p-8 text-center">
         <HardDrive class="w-8 h-8 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-        <p class="text-gray-500 dark:text-gray-400">No containers found</p>
+        <p class="text-text-secondary">No containers found</p>
       </div>
     </template>
   </div>

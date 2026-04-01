@@ -106,7 +106,7 @@ const selectedContainerLabel = computed(() => {
         <!-- Container multi-select dropdown -->
         <div class="relative">
           <button
-            class="h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-kPrimary dark:text-white hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors flex items-center gap-2 min-w-[180px]"
+            class="h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-text hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors flex items-center gap-2 min-w-[180px]"
             @click="showContainerDropdown = !showContainerDropdown"
           >
             <Filter class="w-4 h-4 text-gray-400" />
@@ -131,7 +131,7 @@ const selectedContainerLabel = computed(() => {
                 class="rounded border-kPrimary/15 dark:border-neutral-700 text-accent focus:ring-accent/20"
                 @change="toggleContainer(name)"
               />
-              <span class="text-kPrimary dark:text-white truncate">{{ name }}</span>
+              <span class="text-text truncate">{{ name }}</span>
             </label>
           </div>
           <!-- Click-away overlay -->
@@ -158,7 +158,7 @@ const selectedContainerLabel = computed(() => {
         <!-- Stream filter -->
         <select
           v-model="streamFilter"
-          class="h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-kPrimary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+          class="h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
         >
           <option value="all">All streams</option>
           <option value="stdout">stdout</option>
@@ -168,7 +168,7 @@ const selectedContainerLabel = computed(() => {
         <!-- Tail count -->
         <select
           v-model.number="tailCount"
-          class="h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-kPrimary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+          class="h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
         >
           <option :value="100">100 lines</option>
           <option :value="200">200 lines</option>

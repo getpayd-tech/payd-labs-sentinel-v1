@@ -26,7 +26,7 @@ const classes = computed(() => {
     warning: 'bg-yellow-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border border-yellow-200 dark:border-amber-800',
     error: 'bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800',
     info: 'bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800',
-    neutral: 'bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-neutral-700',
+    neutral: 'bg-surface-tertiary text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-neutral-700',
   }
 
   return cn(base, sizes[props.size], variants[props.variant], props.class)

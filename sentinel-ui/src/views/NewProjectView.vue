@@ -159,7 +159,7 @@ const stepLabels = ['Type', 'Configure', 'Env Vars', 'Review']
   <div class="animate-fade-in">
     <!-- Back button -->
     <button
-      class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-kPrimary dark:hover:text-white transition-colors mb-4"
+      class="flex items-center gap-1.5 text-sm text-text-secondary hover:text-kPrimary dark:hover:text-white transition-colors mb-4"
       @click="router.push('/projects')"
     >
       <ArrowLeft class="w-4 h-4" />
@@ -182,7 +182,7 @@ const stepLabels = ['Type', 'Configure', 'Env Vars', 'Review']
                 ? 'bg-accent text-white'
                 : currentStep === index + 1
                   ? 'bg-kPrimary dark:bg-white text-white dark:text-kPrimary'
-                  : 'bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-gray-500',
+                  : 'bg-surface-tertiary text-gray-400 dark:text-gray-500',
             ]"
           >
             <Check v-if="currentStep > index + 1" class="w-4 h-4" />
@@ -192,7 +192,7 @@ const stepLabels = ['Type', 'Configure', 'Env Vars', 'Review']
             :class="[
               'text-sm font-medium hidden sm:inline',
               currentStep >= index + 1
-                ? 'text-kPrimary dark:text-white'
+                ? 'text-text'
                 : 'text-gray-400 dark:text-gray-500',
             ]"
           >
@@ -213,7 +213,7 @@ const stepLabels = ['Type', 'Configure', 'Env Vars', 'Review']
 
     <!-- Step 1: Select project type -->
     <div v-if="currentStep === 1" class="space-y-4">
-      <h2 class="text-lg font-heading font-semibold text-kPrimary dark:text-white">
+      <h2 class="text-lg font-heading font-semibold text-text">
         Select Project Type
       </h2>
       <p v-if="errors.type" class="text-sm text-red-500 dark:text-red-400">{{ errors.type }}</p>
@@ -235,7 +235,7 @@ const stepLabels = ['Type', 'Configure', 'Env Vars', 'Review']
                 'w-10 h-10 rounded-lg flex items-center justify-center shrink-0',
                 projectData.type === pt.type
                   ? 'bg-accent/10'
-                  : 'bg-kPrimary/5 dark:bg-neutral-800',
+                  : 'bg-surface-tertiary',
               ]"
             >
               <component
@@ -244,15 +244,15 @@ const stepLabels = ['Type', 'Configure', 'Env Vars', 'Review']
                   'w-5 h-5',
                   projectData.type === pt.type
                     ? 'text-accent'
-                    : 'text-kPrimary dark:text-gray-400',
+                    : 'text-text-secondary',
                 ]"
               />
             </div>
             <div>
-              <h3 class="text-sm font-semibold font-heading text-kPrimary dark:text-white">
+              <h3 class="text-sm font-semibold font-heading text-text">
                 {{ pt.label }}
               </h3>
-              <p class="text-2xs text-gray-500 dark:text-gray-400">{{ pt.description }}</p>
+              <p class="text-2xs text-text-secondary">{{ pt.description }}</p>
             </div>
           </div>
         </div>
@@ -261,7 +261,7 @@ const stepLabels = ['Type', 'Configure', 'Env Vars', 'Review']
 
     <!-- Step 2: Configure -->
     <div v-if="currentStep === 2" class="space-y-4">
-      <h2 class="text-lg font-heading font-semibold text-kPrimary dark:text-white">
+      <h2 class="text-lg font-heading font-semibold text-text">
         Configure Project
       </h2>
       <div class="card p-5 space-y-4">
@@ -308,12 +308,12 @@ const stepLabels = ['Type', 'Configure', 'Env Vars', 'Review']
 
     <!-- Step 3: Environment variables -->
     <div v-if="currentStep === 3" class="space-y-4">
-      <h2 class="text-lg font-heading font-semibold text-kPrimary dark:text-white">
+      <h2 class="text-lg font-heading font-semibold text-text">
         Environment Variables
       </h2>
       <div class="card p-5">
         <div v-if="envVars.length === 0" class="text-center py-6">
-          <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+          <p class="text-sm text-text-secondary mb-3">
             No environment variables configured. Add some if your project needs them.
           </p>
         </div>
@@ -328,7 +328,7 @@ const stepLabels = ['Type', 'Configure', 'Env Vars', 'Review']
                 v-model="envVar.key"
                 type="text"
                 placeholder="KEY"
-                class="w-full h-9 px-3 text-sm font-mono rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-kPrimary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors placeholder:text-gray-400"
+                class="w-full h-9 px-3 text-sm font-mono rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors placeholder:text-gray-400"
               />
             </div>
             <div class="flex-1">
@@ -336,7 +336,7 @@ const stepLabels = ['Type', 'Configure', 'Env Vars', 'Review']
                 v-model="envVar.value"
                 type="text"
                 placeholder="value"
-                class="w-full h-9 px-3 text-sm font-mono rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-kPrimary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors placeholder:text-gray-400"
+                class="w-full h-9 px-3 text-sm font-mono rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors placeholder:text-gray-400"
               />
             </div>
             <button
@@ -359,57 +359,57 @@ const stepLabels = ['Type', 'Configure', 'Env Vars', 'Review']
 
     <!-- Step 4: Review -->
     <div v-if="currentStep === 4" class="space-y-4">
-      <h2 class="text-lg font-heading font-semibold text-kPrimary dark:text-white">
+      <h2 class="text-lg font-heading font-semibold text-text">
         Review & Create
       </h2>
       <div class="card p-5 space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Type</span>
-            <p class="text-sm font-medium text-kPrimary dark:text-white mt-0.5">
+            <span class="text-xs font-semibold text-text-secondary uppercase tracking-wide">Type</span>
+            <p class="text-sm font-medium text-text mt-0.5">
               <Badge :variant="projectData.type === 'fastapi' ? 'success' : projectData.type === 'vue' ? 'info' : projectData.type === 'laravel' ? 'error' : projectData.type === 'blended' ? 'warning' : 'neutral'" size="sm">
                 {{ projectData.type }}
               </Badge>
             </p>
           </div>
           <div>
-            <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Slug</span>
-            <p class="text-sm font-mono font-medium text-kPrimary dark:text-white mt-0.5">{{ projectData.name }}</p>
+            <span class="text-xs font-semibold text-text-secondary uppercase tracking-wide">Slug</span>
+            <p class="text-sm font-mono font-medium text-text mt-0.5">{{ projectData.name }}</p>
           </div>
           <div>
-            <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Display Name</span>
-            <p class="text-sm font-medium text-kPrimary dark:text-white mt-0.5">{{ projectData.display_name }}</p>
+            <span class="text-xs font-semibold text-text-secondary uppercase tracking-wide">Display Name</span>
+            <p class="text-sm font-medium text-text mt-0.5">{{ projectData.display_name }}</p>
           </div>
           <div v-if="projectData.domain">
-            <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Domain</span>
-            <p class="text-sm font-medium text-kPrimary dark:text-white mt-0.5">{{ projectData.domain }}</p>
+            <span class="text-xs font-semibold text-text-secondary uppercase tracking-wide">Domain</span>
+            <p class="text-sm font-medium text-text mt-0.5">{{ projectData.domain }}</p>
           </div>
           <div v-if="projectData.github_repo">
-            <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">GitHub Repo</span>
-            <p class="text-sm font-medium text-kPrimary dark:text-white mt-0.5">{{ projectData.github_repo }}</p>
+            <span class="text-xs font-semibold text-text-secondary uppercase tracking-wide">GitHub Repo</span>
+            <p class="text-sm font-medium text-text mt-0.5">{{ projectData.github_repo }}</p>
           </div>
           <div v-if="projectData.ghcr_image">
-            <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">GHCR Image</span>
-            <p class="text-sm font-mono font-medium text-kPrimary dark:text-white mt-0.5">{{ projectData.ghcr_image }}</p>
+            <span class="text-xs font-semibold text-text-secondary uppercase tracking-wide">GHCR Image</span>
+            <p class="text-sm font-mono font-medium text-text mt-0.5">{{ projectData.ghcr_image }}</p>
           </div>
           <div v-if="projectData.health_endpoint">
-            <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Health Endpoint</span>
-            <p class="text-sm font-mono font-medium text-kPrimary dark:text-white mt-0.5">{{ projectData.health_endpoint }}</p>
+            <span class="text-xs font-semibold text-text-secondary uppercase tracking-wide">Health Endpoint</span>
+            <p class="text-sm font-mono font-medium text-text mt-0.5">{{ projectData.health_endpoint }}</p>
           </div>
         </div>
 
         <!-- Env vars summary -->
         <div v-if="envVars.length > 0">
-          <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Environment Variables</span>
+          <span class="text-xs font-semibold text-text-secondary uppercase tracking-wide">Environment Variables</span>
           <div class="mt-2 space-y-1">
             <div
               v-for="(envVar, index) in envVars"
               :key="index"
               class="flex items-center gap-2 text-sm font-mono"
             >
-              <span class="text-kPrimary dark:text-white">{{ envVar.key }}</span>
+              <span class="text-text">{{ envVar.key }}</span>
               <span class="text-gray-400">=</span>
-              <span class="text-gray-500 dark:text-gray-400">{{ envVar.value ? '********' : '(empty)' }}</span>
+              <span class="text-text-secondary">{{ envVar.value ? '********' : '(empty)' }}</span>
             </div>
           </div>
         </div>

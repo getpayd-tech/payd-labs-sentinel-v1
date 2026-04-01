@@ -88,7 +88,7 @@ function getStatusVariant(status?: string, health?: string | null): 'success' | 
   <div class="animate-fade-in">
     <!-- Back button -->
     <button
-      class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-kPrimary dark:hover:text-white transition-colors mb-4"
+      class="flex items-center gap-1.5 text-sm text-text-secondary hover:text-kPrimary dark:hover:text-white transition-colors mb-4"
       @click="router.push('/services')"
     >
       <ArrowLeft class="w-4 h-4" />
@@ -106,7 +106,7 @@ function getStatusVariant(status?: string, health?: string | null): 'success' | 
 
     <!-- Error -->
     <div v-else-if="isError" class="card p-8 text-center">
-      <p class="text-gray-500 dark:text-gray-400">Failed to load container details.</p>
+      <p class="text-text-secondary">Failed to load container details.</p>
       <Button variant="outline" size="sm" class="mt-3" @click="router.push('/services')">
         Go Back
       </Button>
@@ -118,14 +118,14 @@ function getStatusVariant(status?: string, health?: string | null): 'success' | 
         <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
           <div>
             <div class="flex items-center gap-3 mb-1">
-              <h1 class="text-xl font-heading font-bold text-kPrimary dark:text-white">
+              <h1 class="text-xl font-heading font-bold text-text">
                 {{ container.name }}
               </h1>
               <Badge :variant="getStatusVariant(container.status, container.health)" size="sm">
                 {{ container.health === 'unhealthy' ? 'unhealthy' : container.status }}
               </Badge>
             </div>
-            <p class="text-sm text-gray-500 dark:text-gray-400">{{ container.image }}</p>
+            <p class="text-sm text-text-secondary">{{ container.image }}</p>
           </div>
 
           <div class="flex items-center gap-2">
@@ -166,18 +166,18 @@ function getStatusVariant(status?: string, health?: string | null): 'success' | 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div v-if="container.started_at" class="flex items-center gap-2 text-sm">
             <Clock class="w-4 h-4 text-gray-400" />
-            <span class="text-gray-500 dark:text-gray-400">Started:</span>
-            <span class="font-medium text-kPrimary dark:text-white">{{ container.started_at }}</span>
+            <span class="text-text-secondary">Started:</span>
+            <span class="font-medium text-text">{{ container.started_at }}</span>
           </div>
           <div class="flex items-center gap-2 text-sm">
             <Tag class="w-4 h-4 text-gray-400" />
-            <span class="text-gray-500 dark:text-gray-400">ID:</span>
-            <span class="font-mono text-xs text-kPrimary dark:text-white">{{ container.id }}</span>
+            <span class="text-text-secondary">ID:</span>
+            <span class="font-mono text-xs text-text">{{ container.id }}</span>
           </div>
           <div class="flex items-center gap-2 text-sm">
             <RotateCw class="w-4 h-4 text-gray-400" />
-            <span class="text-gray-500 dark:text-gray-400">Restarts:</span>
-            <span class="font-medium text-kPrimary dark:text-white">{{ container.restart_count }}</span>
+            <span class="text-text-secondary">Restarts:</span>
+            <span class="font-medium text-text">{{ container.restart_count }}</span>
           </div>
         </div>
       </div>
@@ -187,7 +187,7 @@ function getStatusVariant(status?: string, health?: string | null): 'success' | 
         <div class="card p-4">
           <div class="flex items-center gap-2 mb-3">
             <Network class="w-4 h-4 text-accent" />
-            <h3 class="text-sm font-semibold font-heading text-kPrimary dark:text-white">Networks</h3>
+            <h3 class="text-sm font-semibold font-heading text-text">Networks</h3>
           </div>
           <div v-if="container.networks.length > 0" class="flex flex-wrap gap-1.5">
             <Badge v-for="net in container.networks" :key="net" variant="info" size="sm">
@@ -200,13 +200,13 @@ function getStatusVariant(status?: string, health?: string | null): 'success' | 
         <div class="card p-4">
           <div class="flex items-center gap-2 mb-3">
             <HardDrive class="w-4 h-4 text-accent" />
-            <h3 class="text-sm font-semibold font-heading text-kPrimary dark:text-white">Volumes</h3>
+            <h3 class="text-sm font-semibold font-heading text-text">Volumes</h3>
           </div>
           <div v-if="container.volumes.length > 0" class="space-y-1">
             <p
               v-for="vol in container.volumes"
               :key="vol"
-              class="text-xs font-mono text-gray-500 dark:text-gray-400 truncate"
+              class="text-xs font-mono text-text-secondary truncate"
             >
               {{ vol }}
             </p>
@@ -217,8 +217,8 @@ function getStatusVariant(status?: string, health?: string | null): 'success' | 
 
       <!-- Logs -->
       <div class="card overflow-hidden">
-        <div class="flex items-center justify-between px-4 py-3 border-b border-kPrimary/10 dark:border-neutral-800">
-          <h3 class="text-sm font-semibold font-heading text-kPrimary dark:text-white">Logs</h3>
+        <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h3 class="text-sm font-semibold font-heading text-text">Logs</h3>
           <Button variant="ghost" size="xs" @click="refetchLogs()">
             <RefreshCw class="w-3.5 h-3.5" />
             Refresh

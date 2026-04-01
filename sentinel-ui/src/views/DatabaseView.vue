@@ -135,7 +135,7 @@ function openCreateModal() {
 
     <!-- Error state -->
     <div v-else-if="dbError" class="card p-8 text-center">
-      <p class="text-gray-500 dark:text-gray-400">Failed to load databases.</p>
+      <p class="text-text-secondary">Failed to load databases.</p>
     </div>
 
     <!-- Main layout -->
@@ -144,7 +144,7 @@ function openCreateModal() {
         <!-- Left sidebar: database list -->
         <div class="w-64 shrink-0 flex flex-col">
           <div class="card p-3 flex-1 flex flex-col overflow-hidden">
-            <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-2 mb-2">
+            <h3 class="text-xs font-semibold text-text-secondary uppercase tracking-wide px-2 mb-2">
               Databases
             </h3>
             <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">
@@ -159,7 +159,7 @@ function openCreateModal() {
                   'w-full text-left px-3 py-2.5 rounded-lg transition-colors text-sm',
                   selectedDb === db.name
                     ? 'bg-accent/10 text-accent border border-accent/20'
-                    : 'hover:bg-gray-50 dark:hover:bg-neutral-800 text-kPrimary dark:text-white',
+                    : 'hover:bg-gray-50 dark:hover:bg-neutral-800 text-text',
                 ]"
                 @click="selectDatabase(db)"
               >
@@ -173,7 +173,7 @@ function openCreateModal() {
                 </div>
               </button>
             </div>
-            <div class="mt-2 pt-2 border-t border-kPrimary/10 dark:border-neutral-800">
+            <div class="mt-2 pt-2 border-t border-border">
               <Button variant="outline" size="sm" class="w-full" @click="openCreateModal">
                 <Plus class="w-4 h-4" />
                 Create Database
@@ -187,7 +187,7 @@ function openCreateModal() {
           <!-- Breadcrumb -->
           <div class="flex items-center gap-1.5 text-sm">
             <button
-              class="text-gray-500 dark:text-gray-400 hover:text-kPrimary dark:hover:text-white transition-colors"
+              class="text-text-secondary hover:text-kPrimary dark:hover:text-white transition-colors"
               @click="goToDbList"
             >
               Databases
@@ -198,8 +198,8 @@ function openCreateModal() {
                 :class="[
                   'transition-colors',
                   selectedTable
-                    ? 'text-gray-500 dark:text-gray-400 hover:text-kPrimary dark:hover:text-white'
-                    : 'text-kPrimary dark:text-white font-semibold',
+                    ? 'text-text-secondary hover:text-kPrimary dark:hover:text-white'
+                    : 'text-text font-semibold',
                 ]"
                 @click="goToTablesList"
               >
@@ -208,20 +208,20 @@ function openCreateModal() {
             </template>
             <template v-if="selectedTable">
               <ChevronRight class="w-3.5 h-3.5 text-gray-400" />
-              <span class="text-kPrimary dark:text-white font-semibold">{{ selectedTable }}</span>
+              <span class="text-text font-semibold">{{ selectedTable }}</span>
             </template>
           </div>
 
           <!-- No DB selected -->
           <div v-if="!selectedDb" class="card p-12 text-center flex-1 flex items-center justify-center">
             <div>
-              <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-kPrimary/5 dark:bg-neutral-800 flex items-center justify-center">
+              <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-surface-tertiary flex items-center justify-center">
                 <Database class="w-7 h-7 text-gray-400" />
               </div>
-              <h3 class="text-lg font-heading font-semibold text-kPrimary dark:text-white mb-2">
+              <h3 class="text-lg font-heading font-semibold text-text mb-2">
                 Select a Database
               </h3>
-              <p class="text-sm text-gray-500 dark:text-gray-400">
+              <p class="text-sm text-text-secondary">
                 Choose a database from the sidebar to browse tables and run queries.
               </p>
             </div>
@@ -245,34 +245,34 @@ function openCreateModal() {
                 <div class="overflow-x-auto">
                   <table class="w-full">
                     <thead>
-                      <tr class="border-b border-kPrimary/10 dark:border-neutral-800">
-                        <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Table</th>
-                        <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Rows</th>
-                        <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Size</th>
+                      <tr class="border-b border-border">
+                        <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Table</th>
+                        <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Rows</th>
+                        <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Size</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr
                         v-for="table in tables"
                         :key="table.name"
-                        class="border-b border-kPrimary/5 dark:border-neutral-800/50 last:border-0 hover:bg-gray-50 dark:hover:bg-neutral-800/30 cursor-pointer transition-colors"
+                        class="border-b border-border last:border-0 hover:bg-surface-secondary cursor-pointer transition-colors"
                         @click="selectTableRow(table.name)"
                       >
                         <td class="px-4 py-3">
                           <div class="flex items-center gap-2.5">
-                            <div class="w-8 h-8 rounded-lg bg-kPrimary/5 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-                              <Table2 class="w-4 h-4 text-kPrimary dark:text-gray-400" />
+                            <div class="w-8 h-8 rounded-lg bg-surface-tertiary flex items-center justify-center shrink-0">
+                              <Table2 class="w-4 h-4 text-text-secondary" />
                             </div>
-                            <span class="text-sm font-semibold font-heading text-kPrimary dark:text-white">
+                            <span class="text-sm font-semibold font-heading text-text">
                               {{ table.name }}
                             </span>
                           </div>
                         </td>
                         <td class="px-4 py-3">
-                          <span class="text-sm text-gray-500 dark:text-gray-400">{{ table.row_count.toLocaleString() }}</span>
+                          <span class="text-sm text-text-secondary">{{ table.row_count.toLocaleString() }}</span>
                         </td>
                         <td class="px-4 py-3">
-                          <span class="text-sm text-gray-500 dark:text-gray-400">{{ table.size_pretty }}</span>
+                          <span class="text-sm text-text-secondary">{{ table.size_pretty }}</span>
                         </td>
                       </tr>
                     </tbody>
@@ -281,7 +281,7 @@ function openCreateModal() {
 
                 <div v-if="tables && tables.length === 0" class="p-8 text-center">
                   <Table2 class="w-6 h-6 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-                  <p class="text-sm text-gray-500 dark:text-gray-400">No tables in this database.</p>
+                  <p class="text-sm text-text-secondary">No tables in this database.</p>
                 </div>
               </template>
             </div>
@@ -295,9 +295,9 @@ function openCreateModal() {
               </div>
 
               <template v-else-if="schema">
-                <div class="px-4 py-3 border-b border-kPrimary/10 dark:border-neutral-800 flex items-center gap-2">
+                <div class="px-4 py-3 border-b border-border flex items-center gap-2">
                   <Columns3 class="w-4 h-4 text-accent" />
-                  <h3 class="text-sm font-semibold font-heading text-kPrimary dark:text-white">
+                  <h3 class="text-sm font-semibold font-heading text-text">
                     Columns
                   </h3>
                   <Badge variant="neutral" size="sm">{{ schema.columns.length }}</Badge>
@@ -305,25 +305,25 @@ function openCreateModal() {
                 <div class="overflow-x-auto">
                   <table class="w-full">
                     <thead>
-                      <tr class="border-b border-kPrimary/10 dark:border-neutral-800">
-                        <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Name</th>
-                        <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Type</th>
-                        <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Nullable</th>
-                        <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Default</th>
-                        <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Key</th>
+                      <tr class="border-b border-border">
+                        <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Name</th>
+                        <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Type</th>
+                        <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Nullable</th>
+                        <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Default</th>
+                        <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Key</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr
                         v-for="col in schema.columns"
                         :key="col.name"
-                        class="border-b border-kPrimary/5 dark:border-neutral-800/50 last:border-0"
+                        class="border-b border-border last:border-0"
                       >
                         <td class="px-4 py-2.5">
-                          <span class="text-sm font-mono font-semibold text-kPrimary dark:text-white">{{ col.name }}</span>
+                          <span class="text-sm font-mono font-semibold text-text">{{ col.name }}</span>
                         </td>
                         <td class="px-4 py-2.5">
-                          <span class="text-sm font-mono text-gray-500 dark:text-gray-400">{{ col.type }}</span>
+                          <span class="text-sm font-mono text-text-secondary">{{ col.type }}</span>
                         </td>
                         <td class="px-4 py-2.5">
                           <Badge :variant="col.nullable ? 'warning' : 'neutral'" size="sm">
@@ -331,7 +331,7 @@ function openCreateModal() {
                           </Badge>
                         </td>
                         <td class="px-4 py-2.5">
-                          <span class="text-sm font-mono text-gray-500 dark:text-gray-400">
+                          <span class="text-sm font-mono text-text-secondary">
                             {{ col.default_value ?? '-' }}
                           </span>
                         </td>
@@ -349,8 +349,8 @@ function openCreateModal() {
 
           <!-- Query editor (bottom panel) -->
           <div v-if="selectedDb" class="card overflow-hidden" style="height: 16rem;">
-            <div class="flex items-center justify-between px-4 py-2.5 border-b border-kPrimary/10 dark:border-neutral-800">
-              <h3 class="text-sm font-semibold font-heading text-kPrimary dark:text-white">Query Editor</h3>
+            <div class="flex items-center justify-between px-4 py-2.5 border-b border-border">
+              <h3 class="text-sm font-semibold font-heading text-text">Query Editor</h3>
               <Button
                 variant="accent"
                 size="xs"

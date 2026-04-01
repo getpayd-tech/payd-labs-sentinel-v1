@@ -51,7 +51,7 @@ function formatMb(mb: number): string {
 
     <!-- Error -->
     <div v-else-if="isError" class="card p-8 text-center">
-      <p class="text-gray-500 dark:text-gray-400">Failed to load system metrics.</p>
+      <p class="text-text-secondary">Failed to load system metrics.</p>
     </div>
 
     <!-- Metrics -->
@@ -64,13 +64,13 @@ function formatMb(mb: number): string {
               <Cpu class="w-5 h-5 text-accent" />
             </div>
             <div>
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">CPU Usage</p>
-              <p class="text-2xl font-heading font-bold text-kPrimary dark:text-white">
+              <p class="text-xs font-medium text-text-secondary uppercase tracking-wide">CPU Usage</p>
+              <p class="text-2xl font-heading font-bold text-text">
                 {{ formatPercent(cpuPercent) }}
               </p>
             </div>
           </div>
-          <div class="w-full h-2 bg-gray-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+          <div class="w-full h-2 bg-surface-tertiary rounded-full overflow-hidden">
             <div
               :class="['h-full rounded-full transition-all duration-500', getUsageColor(cpuPercent)]"
               :style="{ width: `${cpuPercent}%` }"
@@ -86,13 +86,13 @@ function formatMb(mb: number): string {
               <MemoryStick class="w-5 h-5 text-blue-500" />
             </div>
             <div>
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Memory</p>
-              <p class="text-2xl font-heading font-bold text-kPrimary dark:text-white">
+              <p class="text-xs font-medium text-text-secondary uppercase tracking-wide">Memory</p>
+              <p class="text-2xl font-heading font-bold text-text">
                 {{ formatPercent(memPercent) }}
               </p>
             </div>
           </div>
-          <div class="w-full h-2 bg-gray-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+          <div class="w-full h-2 bg-surface-tertiary rounded-full overflow-hidden">
             <div
               :class="['h-full rounded-full transition-all duration-500', getUsageColor(memPercent)]"
               :style="{ width: `${memPercent}%` }"
@@ -110,13 +110,13 @@ function formatMb(mb: number): string {
               <HardDrive class="w-5 h-5 text-purple-500" />
             </div>
             <div>
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Disk</p>
-              <p class="text-2xl font-heading font-bold text-kPrimary dark:text-white">
+              <p class="text-xs font-medium text-text-secondary uppercase tracking-wide">Disk</p>
+              <p class="text-2xl font-heading font-bold text-text">
                 {{ formatPercent(diskPercent) }}
               </p>
             </div>
           </div>
-          <div class="w-full h-2 bg-gray-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+          <div class="w-full h-2 bg-surface-tertiary rounded-full overflow-hidden">
             <div
               :class="['h-full rounded-full transition-all duration-500', getUsageColor(diskPercent)]"
               :style="{ width: `${diskPercent}%` }"
@@ -134,17 +134,17 @@ function formatMb(mb: number): string {
               <Network class="w-5 h-5 text-orange-500" />
             </div>
             <div>
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Network I/O</p>
+              <p class="text-xs font-medium text-text-secondary uppercase tracking-wide">Network I/O</p>
             </div>
           </div>
           <div class="space-y-2">
             <div class="flex items-center justify-between text-sm">
-              <span class="text-gray-500 dark:text-gray-400">Sent</span>
-              <span class="font-medium text-kPrimary dark:text-white">{{ formatMb(metrics.network_tx_mb) }}</span>
+              <span class="text-text-secondary">Sent</span>
+              <span class="font-medium text-text">{{ formatMb(metrics.network_tx_mb) }}</span>
             </div>
             <div class="flex items-center justify-between text-sm">
-              <span class="text-gray-500 dark:text-gray-400">Received</span>
-              <span class="font-medium text-kPrimary dark:text-white">{{ formatMb(metrics.network_rx_mb) }}</span>
+              <span class="text-text-secondary">Received</span>
+              <span class="font-medium text-text">{{ formatMb(metrics.network_rx_mb) }}</span>
             </div>
           </div>
         </Card>
@@ -156,24 +156,24 @@ function formatMb(mb: number): string {
               <Activity class="w-5 h-5 text-emerald-500" />
             </div>
             <div>
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Load Average</p>
+              <p class="text-xs font-medium text-text-secondary uppercase tracking-wide">Load Average</p>
             </div>
           </div>
           <div class="flex items-center gap-4">
             <div class="text-center">
-              <p class="text-xl font-heading font-bold text-kPrimary dark:text-white">
+              <p class="text-xl font-heading font-bold text-text">
                 {{ metrics.load_average[0]?.toFixed(2) ?? '-' }}
               </p>
               <p class="text-2xs text-gray-400">1 min</p>
             </div>
             <div class="text-center">
-              <p class="text-xl font-heading font-bold text-kPrimary dark:text-white">
+              <p class="text-xl font-heading font-bold text-text">
                 {{ metrics.load_average[1]?.toFixed(2) ?? '-' }}
               </p>
               <p class="text-2xs text-gray-400">5 min</p>
             </div>
             <div class="text-center">
-              <p class="text-xl font-heading font-bold text-kPrimary dark:text-white">
+              <p class="text-xl font-heading font-bold text-text">
                 {{ metrics.load_average[2]?.toFixed(2) ?? '-' }}
               </p>
               <p class="text-2xs text-gray-400">15 min</p>
@@ -184,21 +184,21 @@ function formatMb(mb: number): string {
         <!-- Server Info -->
         <Card>
           <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 rounded-lg bg-kPrimary/5 dark:bg-neutral-800 flex items-center justify-center">
-              <Server class="w-5 h-5 text-kPrimary dark:text-gray-400" />
+            <div class="w-10 h-10 rounded-lg bg-surface-tertiary flex items-center justify-center">
+              <Server class="w-5 h-5 text-text-secondary" />
             </div>
             <div>
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Server Info</p>
+              <p class="text-xs font-medium text-text-secondary uppercase tracking-wide">Server Info</p>
             </div>
           </div>
           <div class="space-y-2">
             <div class="flex items-center justify-between text-sm">
-              <span class="text-gray-500 dark:text-gray-400">Uptime</span>
-              <span class="font-medium text-kPrimary dark:text-white">{{ formatUptime(metrics.uptime_seconds) }}</span>
+              <span class="text-text-secondary">Uptime</span>
+              <span class="font-medium text-text">{{ formatUptime(metrics.uptime_seconds) }}</span>
             </div>
             <div class="flex items-center justify-between text-sm">
-              <span class="text-gray-500 dark:text-gray-400">CPU Cores</span>
-              <span class="font-medium text-kPrimary dark:text-white">{{ metrics.cpu_count }}</span>
+              <span class="text-text-secondary">CPU Cores</span>
+              <span class="font-medium text-text">{{ metrics.cpu_count }}</span>
             </div>
           </div>
         </Card>

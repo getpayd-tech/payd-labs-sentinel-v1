@@ -125,13 +125,13 @@ function openDeployModal() {
 
     <!-- Filter bar -->
     <div class="flex items-center gap-3 mb-4">
-      <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+      <div class="flex items-center gap-2 text-sm text-text-secondary">
         <Filter class="w-4 h-4" />
         <span>Filter by project:</span>
       </div>
       <select
         v-model="selectedProject"
-        class="h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-kPrimary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+        class="h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
       >
         <option value="">All Projects</option>
         <option v-for="project in projects" :key="project.id" :value="project.id">
@@ -154,7 +154,7 @@ function openDeployModal() {
 
     <!-- Error state -->
     <div v-else-if="isError" class="card p-8 text-center">
-      <p class="text-gray-500 dark:text-gray-400">Failed to load deployments.</p>
+      <p class="text-text-secondary">Failed to load deployments.</p>
       <Button variant="outline" size="sm" class="mt-3" @click="refetch()">Retry</Button>
     </div>
 
@@ -163,29 +163,29 @@ function openDeployModal() {
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead>
-            <tr class="border-b border-kPrimary/10 dark:border-neutral-800">
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Project</th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Trigger</th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Image Tag</th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Status</th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Duration</th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Triggered By</th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Time</th>
-              <th class="text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Actions</th>
+            <tr class="border-b border-border">
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Project</th>
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3 hidden md:table-cell">Trigger</th>
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Image Tag</th>
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Status</th>
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3 hidden md:table-cell">Duration</th>
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Triggered By</th>
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Time</th>
+              <th class="text-right text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr
               v-for="deploy in items"
               :key="deploy.id"
-              class="border-b border-kPrimary/5 dark:border-neutral-800/50 last:border-0 hover:bg-gray-50 dark:hover:bg-neutral-800/30 transition-colors"
+              class="border-b border-border last:border-0 hover:bg-surface-secondary transition-colors"
             >
               <td class="px-4 py-3">
                 <div class="flex items-center gap-2">
-                  <div class="w-8 h-8 rounded-lg bg-kPrimary/5 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-                    <Rocket class="w-4 h-4 text-kPrimary dark:text-gray-400" />
+                  <div class="w-8 h-8 rounded-lg bg-surface-tertiary flex items-center justify-center shrink-0">
+                    <Rocket class="w-4 h-4 text-text-secondary" />
                   </div>
-                  <span class="text-sm font-semibold font-heading text-kPrimary dark:text-white">
+                  <span class="text-sm font-semibold font-heading text-text">
                     {{ deploy.project_name }}
                   </span>
                 </div>
@@ -194,7 +194,7 @@ function openDeployModal() {
                 <Badge variant="neutral" size="sm">{{ deploy.trigger_type }}</Badge>
               </td>
               <td class="px-4 py-3 hidden lg:table-cell">
-                <div class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+                <div class="flex items-center gap-1.5 text-sm text-text-secondary">
                   <Tag class="w-3.5 h-3.5" />
                   <span class="font-mono text-xs">{{ deploy.image_tag || '-' }}</span>
                 </div>
@@ -206,19 +206,19 @@ function openDeployModal() {
                 </Badge>
               </td>
               <td class="px-4 py-3 hidden md:table-cell">
-                <div class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+                <div class="flex items-center gap-1.5 text-sm text-text-secondary">
                   <Clock class="w-3.5 h-3.5" />
                   {{ formatDuration(deploy.duration_seconds) }}
                 </div>
               </td>
               <td class="px-4 py-3 hidden lg:table-cell">
-                <div class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+                <div class="flex items-center gap-1.5 text-sm text-text-secondary">
                   <User class="w-3.5 h-3.5" />
                   {{ deploy.triggered_by }}
                 </div>
               </td>
               <td class="px-4 py-3">
-                <span class="text-sm text-gray-500 dark:text-gray-400">
+                <span class="text-sm text-text-secondary">
                   {{ relativeTime(deploy.started_at) }}
                 </span>
               </td>
@@ -242,11 +242,11 @@ function openDeployModal() {
 
       <!-- Empty state -->
       <div v-if="items.length === 0" class="p-12 text-center">
-        <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-kPrimary/5 dark:bg-neutral-800 flex items-center justify-center">
+        <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-surface-tertiary flex items-center justify-center">
           <Rocket class="w-7 h-7 text-gray-400" />
         </div>
-        <h3 class="text-lg font-heading font-semibold text-kPrimary dark:text-white mb-2">No deployments yet</h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+        <h3 class="text-lg font-heading font-semibold text-text mb-2">No deployments yet</h3>
+        <p class="text-sm text-text-secondary max-w-md mx-auto">
           Trigger your first deployment to see it here.
         </p>
       </div>
@@ -259,7 +259,7 @@ function openDeployModal() {
           <label class="block text-sm font-medium text-kPrimary dark:text-gray-300 mb-1.5">Project</label>
           <select
             v-model="deployProjectId"
-            class="w-full h-10 px-3.5 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-kPrimary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+            class="w-full h-10 px-3.5 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
           >
             <option value="" disabled>Select a project</option>
             <option v-for="project in projects" :key="project.id" :value="project.id">

@@ -32,7 +32,7 @@ const trendColor = computed(() => {
 <template>
   <div :class="cn('card p-4', props.class)">
     <div class="flex items-center justify-between mb-2">
-      <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+      <span class="text-xs font-medium text-text-secondary uppercase tracking-wide">
         {{ label }}
       </span>
       <div
@@ -43,7 +43,7 @@ const trendColor = computed(() => {
       </div>
     </div>
     <div class="flex items-end gap-2">
-      <span class="text-2xl font-heading font-bold text-kPrimary dark:text-white">
+      <span class="text-2xl font-heading font-bold text-text">
         {{ value }}
       </span>
       <div v-if="trendValue" :class="['flex items-center gap-0.5 text-xs mb-0.5', trendColor]">

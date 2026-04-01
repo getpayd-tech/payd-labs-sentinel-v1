@@ -94,7 +94,7 @@ function navigateToDetail(name: string) {
 
     <!-- Error -->
     <div v-else-if="isError" class="card p-8 text-center">
-      <p class="text-gray-500 dark:text-gray-400">Failed to load containers.</p>
+      <p class="text-text-secondary">Failed to load containers.</p>
       <Button variant="outline" size="sm" class="mt-3" @click="refetch()">Retry</Button>
     </div>
 
@@ -103,20 +103,20 @@ function navigateToDetail(name: string) {
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead>
-            <tr class="border-b border-kPrimary/10 dark:border-neutral-800">
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">
+            <tr class="border-b border-border">
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">
                 Container
               </th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">
                 Image
               </th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">
                 Status
               </th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3 hidden md:table-cell">
                 Memory
               </th>
-              <th class="text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">
+              <th class="text-right text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">
                 Actions
               </th>
             </tr>
@@ -125,21 +125,21 @@ function navigateToDetail(name: string) {
             <tr
               v-for="container in containers"
               :key="container.name"
-              class="border-b border-kPrimary/5 dark:border-neutral-800/50 last:border-0 hover:bg-gray-50 dark:hover:bg-neutral-800/30 cursor-pointer transition-colors"
+              class="border-b border-border last:border-0 hover:bg-surface-secondary cursor-pointer transition-colors"
               @click="navigateToDetail(container.name)"
             >
               <td class="px-4 py-3">
                 <div class="flex items-center gap-2.5">
-                  <div class="w-8 h-8 rounded-lg bg-kPrimary/5 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-                    <Container class="w-4 h-4 text-kPrimary dark:text-gray-400" />
+                  <div class="w-8 h-8 rounded-lg bg-surface-tertiary flex items-center justify-center shrink-0">
+                    <Container class="w-4 h-4 text-text-secondary" />
                   </div>
-                  <span class="text-sm font-semibold font-heading text-kPrimary dark:text-white">
+                  <span class="text-sm font-semibold font-heading text-text">
                     {{ container.name }}
                   </span>
                 </div>
               </td>
               <td class="px-4 py-3">
-                <span class="text-sm text-gray-500 dark:text-gray-400">
+                <span class="text-sm text-text-secondary">
                   {{ truncate(container.image, 40) }}
                 </span>
               </td>
@@ -149,7 +149,7 @@ function navigateToDetail(name: string) {
                 </Badge>
               </td>
               <td class="px-4 py-3 hidden md:table-cell">
-                <span class="text-sm text-gray-500 dark:text-gray-400">
+                <span class="text-sm text-text-secondary">
                   {{ container.memory_usage_mb > 0 ? `${container.memory_usage_mb.toFixed(0)} MB` : '-' }}
                 </span>
               </td>
@@ -190,7 +190,7 @@ function navigateToDetail(name: string) {
       </div>
 
       <div v-if="containers && containers.length === 0" class="p-8 text-center">
-        <p class="text-gray-500 dark:text-gray-400">No containers found.</p>
+        <p class="text-text-secondary">No containers found.</p>
       </div>
     </div>
   </div>

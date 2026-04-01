@@ -31,11 +31,11 @@ const sizes: Record<string, string> = {
 
 const inputClasses = computed(() => {
   const base =
-    'w-full rounded-lg border bg-white font-body transition-all duration-200 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-900'
+    'w-full rounded-lg border bg-surface text-text font-body transition-all duration-200 placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50'
 
   const borderClass = props.error
     ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20 dark:border-red-800'
-    : 'border-kPrimary/15 focus:border-accent focus:ring-accent/20 dark:border-neutral-700 dark:focus:border-accent'
+    : 'border-border focus:border-accent focus:ring-accent/20'
 
   return cn(base, borderClass, sizes[props.size], props.class)
 })
@@ -50,12 +50,12 @@ function onInput(event: Event) {
   <div class="w-full">
     <label
       v-if="props.label"
-      class="block text-sm font-medium text-kPrimary dark:text-gray-300 mb-1.5"
+      class="block text-sm font-medium text-text mb-1.5"
     >
       {{ props.label }}
     </label>
     <div class="relative">
-      <div v-if="$slots.left" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+      <div v-if="$slots.left" class="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary">
         <slot name="left" />
       </div>
       <input
@@ -66,7 +66,7 @@ function onInput(event: Event) {
         :class="[inputClasses, $slots.left ? 'pl-10' : '', $slots.right ? 'pr-10' : '']"
         @input="onInput"
       />
-      <div v-if="$slots.right" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+      <div v-if="$slots.right" class="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary">
         <slot name="right" />
       </div>
     </div>

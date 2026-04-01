@@ -20,6 +20,21 @@ export default {
         body: ['"Nunito"', 'sans-serif'],
       },
       colors: {
+        // CSS variable-based colors — automatically adapt to dark mode
+        surface: {
+          DEFAULT: 'var(--color-surface)',
+          secondary: 'var(--color-surface-secondary)',
+          tertiary: 'var(--color-surface-tertiary)',
+        },
+        border: {
+          DEFAULT: 'var(--color-border)',
+          medium: 'var(--color-border-medium)',
+        },
+        text: {
+          DEFAULT: 'var(--color-text)',
+          secondary: 'var(--color-text-secondary)',
+          tertiary: 'var(--color-text-tertiary)',
+        },
         accent: {
           DEFAULT: '#18D26E',
           light: '#4ae08e',

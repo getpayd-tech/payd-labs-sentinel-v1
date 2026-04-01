@@ -99,7 +99,7 @@ function getStatusVariant(status: string): 'success' | 'warning' | 'error' | 'in
 
     <!-- Error state -->
     <div v-else-if="isError" class="card p-8 text-center">
-      <p class="text-gray-500 dark:text-gray-400">Failed to load projects.</p>
+      <p class="text-text-secondary">Failed to load projects.</p>
       <Button variant="outline" size="sm" class="mt-3" @click="refetch()">Retry</Button>
     </div>
 
@@ -118,11 +118,11 @@ function getStatusVariant(status: string): 'success' | 'warning' | 'error' | 'in
           <!-- Header -->
           <div class="flex items-start justify-between gap-3 mb-3">
             <div class="flex items-center gap-2.5 min-w-0">
-              <div class="w-10 h-10 rounded-lg bg-kPrimary/5 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-                <FolderGit2 class="w-5 h-5 text-kPrimary dark:text-gray-400" />
+              <div class="w-10 h-10 rounded-lg bg-surface-tertiary flex items-center justify-center shrink-0">
+                <FolderGit2 class="w-5 h-5 text-text-secondary" />
               </div>
               <div class="min-w-0">
-                <h3 class="text-sm font-semibold font-heading text-kPrimary dark:text-white truncate">
+                <h3 class="text-sm font-semibold font-heading text-text truncate">
                   {{ project.display_name || project.name }}
                 </h3>
                 <p class="text-2xs text-gray-400 truncate">{{ project.name }}</p>
@@ -135,11 +135,11 @@ function getStatusVariant(status: string): 'success' | 'warning' | 'error' | 'in
 
           <!-- Details -->
           <div class="space-y-2 mb-3">
-            <div v-if="project.domain" class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+            <div v-if="project.domain" class="flex items-center gap-1.5 text-sm text-text-secondary">
               <Globe class="w-3.5 h-3.5 shrink-0" />
               <span class="truncate">{{ project.domain }}</span>
             </div>
-            <div v-if="project.github_repo" class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+            <div v-if="project.github_repo" class="flex items-center gap-1.5 text-sm text-text-secondary">
               <Github class="w-3.5 h-3.5 shrink-0" />
               <a
                 :href="`https://github.com/${project.github_repo}`"
@@ -151,7 +151,7 @@ function getStatusVariant(status: string): 'success' | 'warning' | 'error' | 'in
                 <ExternalLink class="w-3 h-3 inline ml-0.5" />
               </a>
             </div>
-            <div class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+            <div class="flex items-center gap-1.5 text-sm text-text-secondary">
               <Container class="w-3.5 h-3.5 shrink-0" />
               <span>{{ project.container_count }} container{{ project.container_count !== 1 ? 's' : '' }}</span>
             </div>
@@ -166,13 +166,13 @@ function getStatusVariant(status: string): 'success' | 'warning' | 'error' | 'in
 
       <!-- Empty state -->
       <div v-else class="card p-12 text-center">
-        <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-kPrimary/5 dark:bg-neutral-800 flex items-center justify-center">
+        <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-surface-tertiary flex items-center justify-center">
           <FolderGit2 class="w-7 h-7 text-gray-400" />
         </div>
-        <h3 class="text-lg font-heading font-semibold text-kPrimary dark:text-white mb-2">
+        <h3 class="text-lg font-heading font-semibold text-text mb-2">
           No projects yet
         </h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-4">
+        <p class="text-sm text-text-secondary max-w-md mx-auto mb-4">
           Create your first project or scan for existing ones.
         </p>
         <div class="flex items-center justify-center gap-2">

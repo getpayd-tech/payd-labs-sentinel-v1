@@ -195,7 +195,7 @@ function confirmDelete(domain: string) {
 
     <!-- Error state -->
     <div v-else-if="isError" class="card p-8 text-center">
-      <p class="text-gray-500 dark:text-gray-400">Failed to load domains.</p>
+      <p class="text-text-secondary">Failed to load domains.</p>
       <Button variant="outline" size="sm" class="mt-3" @click="refetch()">Retry</Button>
     </div>
 
@@ -204,25 +204,25 @@ function confirmDelete(domain: string) {
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead>
-            <tr class="border-b border-kPrimary/10 dark:border-neutral-800">
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Domain</th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Upstreams</th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">TLS</th>
-              <th class="text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Actions</th>
+            <tr class="border-b border-border">
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Domain</th>
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Upstreams</th>
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">TLS</th>
+              <th class="text-right text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr
               v-for="domain in domains"
               :key="domain.domain"
-              class="border-b border-kPrimary/5 dark:border-neutral-800/50 last:border-0 hover:bg-gray-50 dark:hover:bg-neutral-800/30 transition-colors"
+              class="border-b border-border last:border-0 hover:bg-surface-secondary transition-colors"
             >
               <td class="px-4 py-3">
                 <div class="flex items-center gap-2.5">
-                  <div class="w-8 h-8 rounded-lg bg-kPrimary/5 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-                    <Globe class="w-4 h-4 text-kPrimary dark:text-gray-400" />
+                  <div class="w-8 h-8 rounded-lg bg-surface-tertiary flex items-center justify-center shrink-0">
+                    <Globe class="w-4 h-4 text-text-secondary" />
                   </div>
-                  <span class="text-sm font-semibold font-heading text-kPrimary dark:text-white">
+                  <span class="text-sm font-semibold font-heading text-text">
                     {{ domain.domain }}
                   </span>
                 </div>
@@ -272,11 +272,11 @@ function confirmDelete(domain: string) {
 
       <!-- Empty state -->
       <div v-if="domains && domains.length === 0" class="p-12 text-center">
-        <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-kPrimary/5 dark:bg-neutral-800 flex items-center justify-center">
+        <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-surface-tertiary flex items-center justify-center">
           <Globe class="w-7 h-7 text-gray-400" />
         </div>
-        <h3 class="text-lg font-heading font-semibold text-kPrimary dark:text-white mb-2">No domains configured</h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-4">
+        <h3 class="text-lg font-heading font-semibold text-text mb-2">No domains configured</h3>
+        <p class="text-sm text-text-secondary max-w-md mx-auto mb-4">
           Add your first domain to start routing traffic.
         </p>
         <Button variant="accent" size="sm" @click="openAddModal">
@@ -316,13 +316,13 @@ function confirmDelete(domain: string) {
                 v-model="target.path_prefix"
                 type="text"
                 placeholder="/"
-                class="w-20 h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-kPrimary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors placeholder:text-gray-400"
+                class="w-20 h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors placeholder:text-gray-400"
               />
               <input
                 v-model="target.upstream"
                 type="text"
                 placeholder="container:8000"
-                class="flex-1 h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-kPrimary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors placeholder:text-gray-400"
+                class="flex-1 h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors placeholder:text-gray-400"
               />
               <button
                 v-if="newDomain.targets.length > 1"
@@ -361,7 +361,7 @@ function confirmDelete(domain: string) {
       <div class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-kPrimary dark:text-gray-300 mb-1.5">Domain</label>
-          <p class="text-sm font-mono text-kPrimary dark:text-white">{{ editDomain.domain }}</p>
+          <p class="text-sm font-mono text-text">{{ editDomain.domain }}</p>
         </div>
         <div>
           <label class="flex items-center gap-2 text-sm text-kPrimary dark:text-gray-300">
@@ -385,13 +385,13 @@ function confirmDelete(domain: string) {
                 v-model="target.path_prefix"
                 type="text"
                 placeholder="/"
-                class="w-20 h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-kPrimary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors placeholder:text-gray-400"
+                class="w-20 h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors placeholder:text-gray-400"
               />
               <input
                 v-model="target.upstream"
                 type="text"
                 placeholder="container:8000"
-                class="flex-1 h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-kPrimary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors placeholder:text-gray-400"
+                class="flex-1 h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors placeholder:text-gray-400"
               />
               <button
                 v-if="editDomain.targets.length > 1"

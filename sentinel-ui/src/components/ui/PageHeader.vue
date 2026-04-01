@@ -10,10 +10,10 @@ defineProps<Props>()
 <template>
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
     <div>
-      <h1 class="text-2xl font-heading font-semibold text-kPrimary dark:text-white">
+      <h1 class="text-2xl font-heading font-semibold text-text">
         {{ title }}
       </h1>
-      <p v-if="description" class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+      <p v-if="description" class="mt-1 text-sm text-text-secondary">
         {{ description }}
       </p>
     </div>

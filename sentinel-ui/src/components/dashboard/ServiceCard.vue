@@ -45,11 +45,11 @@ function navigateToDetail() {
   >
     <div class="flex items-start justify-between gap-3 mb-3">
       <div class="flex items-center gap-2.5 min-w-0">
-        <div class="w-9 h-9 rounded-lg bg-kPrimary/5 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-          <Container class="w-4 h-4 text-kPrimary dark:text-gray-400" />
+        <div class="w-9 h-9 rounded-lg bg-surface-tertiary flex items-center justify-center shrink-0">
+          <Container class="w-4 h-4 text-text-secondary" />
         </div>
         <div class="min-w-0">
-          <h3 class="text-sm font-semibold font-heading text-kPrimary dark:text-white truncate">
+          <h3 class="text-sm font-semibold font-heading text-text truncate">
             {{ container.name }}
           </h3>
           <p class="text-2xs text-gray-400 truncate">

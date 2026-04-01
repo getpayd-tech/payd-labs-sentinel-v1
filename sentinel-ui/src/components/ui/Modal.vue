@@ -27,7 +27,7 @@ const sizes: Record<string, string> = {
 
 const panelClasses = computed(() =>
   cn(
-    'relative w-full rounded-xl bg-white shadow-strong dark:bg-neutral-900 border border-kPrimary/10 dark:border-neutral-800 animate-scale-in',
+    'relative w-full rounded-xl bg-surface shadow-strong border border-border animate-scale-in',
     sizes[props.size],
     props.class
   )
@@ -87,15 +87,15 @@ onBeforeUnmount(() => {
           <!-- Header -->
           <div
             v-if="title || $slots.header"
-            class="flex items-center justify-between px-5 py-4 border-b border-kPrimary/10 dark:border-neutral-800"
+            class="flex items-center justify-between px-5 py-4 border-b border-border"
           >
             <slot name="header">
-              <h3 class="text-lg font-heading font-semibold text-kPrimary dark:text-white">
+              <h3 class="text-lg font-heading font-semibold text-text">
                 {{ title }}
               </h3>
             </slot>
             <button
-              class="rounded-lg p-1.5 text-gray-400 hover:text-kPrimary hover:bg-gray-100 dark:hover:text-white dark:hover:bg-neutral-800 transition-colors"
+              class="rounded-lg p-1.5 text-text-tertiary hover:text-text hover:bg-surface-tertiary transition-colors"
               @click="close"
             >
               <X class="h-4 w-4" />
@@ -110,7 +110,7 @@ onBeforeUnmount(() => {
           <!-- Footer -->
           <div
             v-if="$slots.footer"
-            class="px-5 py-3 border-t border-kPrimary/10 dark:border-neutral-800 bg-gray-50/50 dark:bg-neutral-900/50 rounded-b-xl"
+            class="px-5 py-3 border-t border-border bg-surface-secondary rounded-b-xl"
           >
             <slot name="footer" />
           </div>

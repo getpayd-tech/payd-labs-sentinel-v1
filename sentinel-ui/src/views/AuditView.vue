@@ -114,7 +114,7 @@ function truncateDetails(text: string | null, length = 60): string {
           <input
             v-model="dateFrom"
             type="date"
-            class="h-8 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-kPrimary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+            class="h-8 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
           />
         </div>
         <div>
@@ -122,7 +122,7 @@ function truncateDetails(text: string | null, length = 60): string {
           <input
             v-model="dateTo"
             type="date"
-            class="h-8 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-kPrimary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+            class="h-8 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
           />
         </div>
         <Button variant="accent" size="sm" @click="applyFilters">
@@ -147,7 +147,7 @@ function truncateDetails(text: string | null, length = 60): string {
 
     <!-- Error state -->
     <div v-else-if="isError" class="card p-8 text-center">
-      <p class="text-gray-500 dark:text-gray-400">Failed to load audit logs.</p>
+      <p class="text-text-secondary">Failed to load audit logs.</p>
       <Button variant="outline" size="sm" class="mt-3" @click="refetch()">Retry</Button>
     </div>
 
@@ -156,24 +156,24 @@ function truncateDetails(text: string | null, length = 60): string {
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead>
-            <tr class="border-b border-kPrimary/10 dark:border-neutral-800">
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Timestamp</th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">User</th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Action</th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3">Target</th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Details</th>
-              <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">IP Address</th>
+            <tr class="border-b border-border">
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Timestamp</th>
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">User</th>
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Action</th>
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3">Target</th>
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Details</th>
+              <th class="text-left text-xs font-semibold text-text-secondary uppercase tracking-wide px-4 py-3 hidden md:table-cell">IP Address</th>
             </tr>
           </thead>
           <tbody>
             <template v-for="entry in items" :key="entry.id">
               <tr
-                class="border-b border-kPrimary/5 dark:border-neutral-800/50 last:border-0 hover:bg-gray-50 dark:hover:bg-neutral-800/30 transition-colors"
+                class="border-b border-border last:border-0 hover:bg-surface-secondary transition-colors"
                 :class="{ 'cursor-pointer': entry.details }"
                 @click="entry.details ? toggleDetails(entry.id) : null"
               >
                 <td class="px-4 py-3">
-                  <div class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                  <div class="flex items-center gap-1.5 text-sm text-text-secondary whitespace-nowrap">
                     <Clock class="w-3.5 h-3.5 shrink-0" />
                     {{ formatDate(entry.timestamp) }}
                   </div>
@@ -181,7 +181,7 @@ function truncateDetails(text: string | null, length = 60): string {
                 <td class="px-4 py-3">
                   <div class="flex items-center gap-1.5 text-sm">
                     <User class="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                    <span class="text-kPrimary dark:text-white font-medium">{{ entry.user || 'system' }}</span>
+                    <span class="text-text font-medium">{{ entry.user || 'system' }}</span>
                   </div>
                 </td>
                 <td class="px-4 py-3">
@@ -190,15 +190,15 @@ function truncateDetails(text: string | null, length = 60): string {
                   </Badge>
                 </td>
                 <td class="px-4 py-3">
-                  <span class="text-sm text-kPrimary dark:text-white">{{ entry.target }}</span>
+                  <span class="text-sm text-text">{{ entry.target }}</span>
                 </td>
                 <td class="px-4 py-3 hidden lg:table-cell">
-                  <span class="text-sm text-gray-500 dark:text-gray-400">
+                  <span class="text-sm text-text-secondary">
                     {{ truncateDetails(entry.details) }}
                   </span>
                 </td>
                 <td class="px-4 py-3 hidden md:table-cell">
-                  <div v-if="entry.ip_address" class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+                  <div v-if="entry.ip_address" class="flex items-center gap-1.5 text-sm text-text-secondary">
                     <Globe class="w-3.5 h-3.5 shrink-0" />
                     <span class="font-mono text-xs">{{ entry.ip_address }}</span>
                   </div>
@@ -220,19 +220,19 @@ function truncateDetails(text: string | null, length = 60): string {
 
       <!-- Empty state -->
       <div v-if="items.length === 0" class="p-12 text-center">
-        <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-kPrimary/5 dark:bg-neutral-800 flex items-center justify-center">
+        <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-surface-tertiary flex items-center justify-center">
           <ClipboardList class="w-7 h-7 text-gray-400" />
         </div>
-        <h3 class="text-lg font-heading font-semibold text-kPrimary dark:text-white mb-2">No audit entries</h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+        <h3 class="text-lg font-heading font-semibold text-text mb-2">No audit entries</h3>
+        <p class="text-sm text-text-secondary max-w-md mx-auto">
           No audit log entries match your current filters.
         </p>
       </div>
 
       <!-- Pagination -->
-      <div v-if="items.length > 0" class="px-4 py-3 border-t border-kPrimary/10 dark:border-neutral-800 flex items-center justify-between">
+      <div v-if="items.length > 0" class="px-4 py-3 border-t border-border flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <span class="text-sm text-gray-500 dark:text-gray-400">
+          <span class="text-sm text-text-secondary">
             Page {{ page }} of {{ totalPages }}
           </span>
           <span class="text-2xs text-gray-400">
@@ -242,7 +242,7 @@ function truncateDetails(text: string | null, length = 60): string {
         <div class="flex items-center gap-2">
           <select
             v-model.number="perPage"
-            class="h-8 px-2 text-xs rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-kPrimary dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+            class="h-8 px-2 text-xs rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
             @change="page = 1"
           >
             <option :value="10">10 / page</option>

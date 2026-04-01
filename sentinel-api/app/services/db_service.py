@@ -64,7 +64,7 @@ async def list_databases() -> list[dict[str, Any]]:
             name = row["name"]
             size_mb = round((row["size_bytes"] or 0) / (1024 * 1024), 2)
 
-            # Count tables (connect to each DB)
+            # Count tables (connect to each DB individually)
             tables_count = 0
             try:
                 db_conn = await _get_admin_conn(database=name)
@@ -79,8 +79,8 @@ async def list_databases() -> list[dict[str, Any]]:
                     tables_count = count_row["cnt"] if count_row else 0
                 finally:
                     await db_conn.close()
-            except Exception:
-                pass  # Could not connect to this DB — skip table count
+            except Exception as exc:
+                logger.debug("Cannot count tables for %s (may lack CONNECT privilege): %s", name, exc)
 
             result.append({
                 "name": name,

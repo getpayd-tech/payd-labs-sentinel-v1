@@ -148,6 +148,12 @@ async def me(x_auth_token: str = Header("")):
         if not is_admin:
             raise HTTPException(status_code=403, detail="Admin access required")
 
+        # Username whitelist check
+        username = claims.get("username", "").lower()
+        allowed = settings.allowed_username_list if hasattr(settings, 'allowed_username_list') else []
+        if allowed and username not in [u.lower() for u in allowed]:
+            raise HTTPException(status_code=403, detail="Access denied. Your account is not whitelisted.")
+
         # Fetch profile from Payd Auth (v3 endpoint with user_id)
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             resp = await client.get(

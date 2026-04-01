@@ -32,6 +32,14 @@ class Settings(BaseSettings):
     # Encryption key for env var storage (Fernet)
     encryption_key: str = ""
 
+    # Comma-separated list of usernames allowed to log in (on top of is_admin)
+    # If empty, any admin can log in
+    allowed_usernames: str = ""
+
+    @property
+    def allowed_username_list(self) -> list[str]:
+        return [u.strip().lower() for u in self.allowed_usernames.split(",") if u.strip()]
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

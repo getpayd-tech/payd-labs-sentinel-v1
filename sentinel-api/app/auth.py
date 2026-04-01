@@ -46,4 +46,12 @@ async def require_admin(request: Request) -> dict:
     if not claims.get("is_admin", False):
         raise HTTPException(status_code=403, detail="Admin access required")
 
+    # Username whitelist — if configured, only listed usernames may log in
+    from app.config import settings
+    allowed = settings.allowed_username_list
+    if allowed:
+        username = (claims.get("username") or "").lower()
+        if username not in allowed:
+            raise HTTPException(status_code=403, detail="Access denied. Your account is not whitelisted.")
+
     return claims

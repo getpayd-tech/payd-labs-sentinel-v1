@@ -315,7 +315,14 @@ async def execute_wizard(
             db.add(project)
             await db.flush()
             steps.append({"step": 1, "name": "Create project record", "status": "complete", "message": f"Project '{display_name}' registered"})
+
+        # Commit early so the DB isn't locked during slow docker operations
+        await db.commit()
     except Exception as exc:
+        try:
+            await db.rollback()
+        except Exception:
+            pass
         steps.append({"step": 1, "name": "Create project record", "status": "error", "message": str(exc)})
         return _build_response("", "", steps)
 

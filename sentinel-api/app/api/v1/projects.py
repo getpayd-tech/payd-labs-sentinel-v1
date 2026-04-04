@@ -130,14 +130,17 @@ async def wizard_execute(
         first_deploy=body.first_deploy,
     )
 
-    await log_action(
-        db,
-        user_id=claims.get("sub"),
-        action="wizard.execute",
-        target=body.name,
-        details={"project_type": body.project_type, "domain": body.domain, "steps": len(result["steps"])},
-        ip_address=request.client.host if request and request.client else None,
-    )
+    try:
+        await log_action(
+            db,
+            user_id=claims.get("sub"),
+            action="wizard.execute",
+            target=body.name,
+            details={"project_type": body.project_type, "domain": body.domain, "steps": len(result["steps"])},
+            ip_address=request.client.host if request and request.client else None,
+        )
+    except Exception as exc:
+        logger.warning("Audit log failed for wizard (non-fatal): %s", exc)
 
     return WizardResponse(
         project_id=result["project_id"],

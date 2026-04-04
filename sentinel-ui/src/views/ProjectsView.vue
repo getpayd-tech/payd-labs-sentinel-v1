@@ -144,12 +144,12 @@ function getStatusVariant(status: string): 'success' | 'warning' | 'error' | 'in
             <div v-if="project.github_repo" class="flex items-center gap-1.5 text-sm text-text-secondary">
               <Github class="w-3.5 h-3.5 shrink-0" />
               <a
-                :href="`https://github.com/${project.github_repo}`"
+                :href="project.github_repo.startsWith('http') ? project.github_repo : `https://github.com/${project.github_repo}`"
                 target="_blank"
                 class="truncate hover:text-accent transition-colors"
                 @click.stop
               >
-                {{ project.github_repo }}
+                {{ project.github_repo.replace(/^https?:\/\/github\.com\//, '') }}
                 <ExternalLink class="w-3 h-3 inline ml-0.5" />
               </a>
             </div>

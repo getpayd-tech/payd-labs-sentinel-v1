@@ -97,6 +97,7 @@ export const useAuthStore = defineStore('auth', () => {
 
       // Fetch full user profile
       await fetchUser()
+      startExpiryCheck()
       sessionToken.value = null
       authStep.value = 'login'
       router.push('/')
@@ -106,6 +107,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout(): Promise<void> {
+    stopExpiryCheck()
     user.value = null
     sessionToken.value = null
     authStep.value = 'login'
@@ -174,6 +176,43 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     await fetchUser()
+    startExpiryCheck()
+  }
+
+  // Auto-logout: check token expiry every 60 seconds
+  let expiryCheckInterval: ReturnType<typeof setInterval> | null = null
+
+  function startExpiryCheck() {
+    if (expiryCheckInterval) return
+    expiryCheckInterval = setInterval(async () => {
+      const token = localStorage.getItem(TOKEN_KEY)
+      if (!token || !isTokenExpired(token)) return
+
+      // Token expired — try refresh
+      const refreshToken = localStorage.getItem(REFRESH_KEY)
+      if (refreshToken) {
+        try {
+          const response = await authService.refresh(refreshToken)
+          const newAuth = response.authToken || (response as any).auth_token || ''
+          if (newAuth) {
+            localStorage.setItem(TOKEN_KEY, newAuth)
+            const newRefresh = response.refreshToken || (response as any).refresh_token || ''
+            if (newRefresh) localStorage.setItem(REFRESH_KEY, newRefresh)
+            return
+          }
+        } catch { /* refresh failed */ }
+      }
+
+      // Refresh failed — logout
+      logout()
+    }, 60_000)
+  }
+
+  function stopExpiryCheck() {
+    if (expiryCheckInterval) {
+      clearInterval(expiryCheckInterval)
+      expiryCheckInterval = null
+    }
   }
 
   function resetToLogin(): void {

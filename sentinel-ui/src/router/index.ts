@@ -50,6 +50,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: 'Deploy Wizard' },
   },
   {
+    path: '/projects/:id',
+    name: 'ProjectDetail',
+    component: () => import('@/views/ProjectDetailView.vue'),
+    meta: { requiresAuth: true, title: 'Project Detail' },
+  },
+  {
     path: '/database',
     name: 'Database',
     component: () => import('@/views/DatabaseView.vue'),

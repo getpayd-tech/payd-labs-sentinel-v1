@@ -1,14 +1,32 @@
 <script setup lang="ts">
 import { ref, nextTick, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
-import { AlertCircle, ArrowLeft, RefreshCw } from 'lucide-vue-next'
+import { AlertCircle, ArrowLeft, RefreshCw, Loader2 } from 'lucide-vue-next'
 
 const LOGO_LIGHT = 'https://res.cloudinary.com/dadkir6u2/image/upload/v1767808544/payd_logo_for_light_mode_scwwdc.png'
 const LOGO_DARK = 'https://res.cloudinary.com/dadkir6u2/image/upload/v1767808543/payd_logo_for_dark_mode_otv7uv.png'
 
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
+const router = useRouter()
+const attemptingRefresh = ref(true)
+
+// Try to refresh token before showing login form (Stables pattern)
+onMounted(async () => {
+  const refreshToken = localStorage.getItem('sentinel_admin_refresh')
+  if (refreshToken) {
+    try {
+      await authStore.hydrate()
+      if (authStore.isAuthenticated) {
+        router.push('/')
+        return
+      }
+    } catch { /* fall through to login form */ }
+  }
+  attemptingRefresh.value = false
+})
 
 const username = ref('')
 const password = ref('')
@@ -125,7 +143,13 @@ async function handleResendOtp() {
 
 <template>
   <div class="min-h-screen flex items-center justify-center bg-[var(--color-surface-secondary)] dark:bg-[#0a0f14] p-4">
-    <div class="w-full max-w-sm">
+    <!-- Loading while attempting token refresh -->
+    <div v-if="attemptingRefresh" class="text-center">
+      <Loader2 class="w-6 h-6 mx-auto text-accent animate-spin mb-3" />
+      <p class="text-sm text-text-secondary">Checking session...</p>
+    </div>
+
+    <div v-else class="w-full max-w-sm">
       <!-- Header -->
       <div class="text-center mb-8">
         <img
@@ -264,6 +288,6 @@ async function handleResendOtp() {
       <p class="mt-6 text-center text-xs text-[var(--color-text-tertiary)]">
         Secured by Payd Labs
       </p>
-    </div>
+    </div><!-- /v-else -->
   </div>
 </template>

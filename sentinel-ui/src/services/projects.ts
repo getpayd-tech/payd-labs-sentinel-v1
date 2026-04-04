@@ -50,8 +50,8 @@ export const projectsService = {
     return data
   },
 
-  async getEnv(id: string): Promise<EnvVar[]> {
-    const { data } = await api.get<EnvVar[]>(`/projects/${id}/env`)
+  async getEnv(id: string, reveal = false): Promise<EnvVar[]> {
+    const { data } = await api.get<EnvVar[]>(`/projects/${id}/env`, { params: { reveal } })
     return data
   },
 

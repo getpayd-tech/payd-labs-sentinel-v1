@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import require_admin
@@ -328,14 +328,15 @@ async def provision_project_resources(
 @router.get("/{project_id}/env", response_model=list[EnvVar])
 async def get_project_env(
     project_id: str,
+    reveal: bool = Query(False, description="Show full values (admin only)"),
     db: AsyncSession = Depends(get_db),
     claims: dict = Depends(require_admin),
 ):
-    """Get environment variable keys for a project (values are masked)."""
+    """Get environment variables for a project. Values masked unless reveal=true."""
     project = await get_project(db, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    return [EnvVar(**v) for v in get_env_vars(project)]
+    return [EnvVar(**v) for v in get_env_vars(project, reveal=reveal)]
 
 
 @router.put("/{project_id}/env")

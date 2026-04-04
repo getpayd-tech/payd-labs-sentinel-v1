@@ -257,8 +257,8 @@ async def provision_project(db: AsyncSession, project: Project, create_database:
 # Environment variables
 # ---------------------------------------------------------------------------
 
-def get_env_vars(project: Project) -> list[dict[str, Any]]:
-    """Read .env file for a project, return keys with masked values."""
+def get_env_vars(project: Project, reveal: bool = False) -> list[dict[str, Any]]:
+    """Read .env file for a project. Masks values unless reveal=True."""
     compose_dir = project.compose_path or str(APPS_DIR / project.name)
     env_path = Path(compose_dir) / ".env"
 
@@ -277,13 +277,11 @@ def get_env_vars(project: Project) -> list[dict[str, Any]]:
         key = key.strip()
         value = value.strip()
 
-        # Mask value: show last 4 chars if long enough
-        if len(value) > 4:
-            masked = "****" + value[-4:]
+        if reveal:
+            result.append({"key": key, "value": value})
         else:
-            masked = "****"
-
-        result.append({"key": key, "value": masked, "is_secret": True})
+            masked = ("****" + value[-4:]) if len(value) > 4 else "****"
+            result.append({"key": key, "value": masked})
 
     return result
 

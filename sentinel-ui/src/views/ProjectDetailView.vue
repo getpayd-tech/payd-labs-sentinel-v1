@@ -39,9 +39,9 @@ const { data: project, isLoading, isError } = useQuery({
   queryFn: () => projectsService.get(projectId),
 })
 
-const { data: projectEnv } = useQuery({
-  queryKey: ['project-env', projectId],
-  queryFn: () => projectsService.getEnv(projectId),
+const { data: projectEnv, refetch: refetchEnv } = useQuery({
+  queryKey: ['project-env', projectId, showEnvValues],
+  queryFn: () => projectsService.getEnv(projectId, showEnvValues.value),
 })
 
 const deleteMutation = useMutation({
@@ -71,11 +71,20 @@ async function copy(text: string, label: string) {
   } catch {}
 }
 
-function openEnvModal() {
-  envVars.value = (projectEnv.value || []).map((v: any) => ({
-    key: v.key || '',
-    value: v.value || '',
-  }))
+async function openEnvModal() {
+  // Always fetch revealed values for editing
+  try {
+    const revealed = await projectsService.getEnv(projectId, true)
+    envVars.value = revealed.map((v: any) => ({
+      key: v.key || '',
+      value: v.value || '',
+    }))
+  } catch {
+    envVars.value = (projectEnv.value || []).map((v: any) => ({
+      key: v.key || '',
+      value: '',
+    }))
+  }
   showEnvModal.value = true
 }
 

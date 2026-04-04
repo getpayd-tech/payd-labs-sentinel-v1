@@ -72,7 +72,7 @@ async function copy(text: string, label: string) {
 
 function openEnvModal() {
   envVars.value = (projectEnv.value || []).map((v: any) => ({
-    key: v.key || v.name || '',
+    key: v.key || '',
     value: v.value || '',
   }))
   showEnvModal.value = true
@@ -236,8 +236,8 @@ function confirmDelete() {
           <Button variant="outline" size="xs" @click="openEnvModal">Edit</Button>
         </div>
         <div class="space-y-1">
-          <div v-for="v in projectEnv" :key="v.key || v.name" class="flex items-center gap-2 text-xs font-mono">
-            <span class="text-accent">{{ v.key || v.name }}</span>
+          <div v-for="v in projectEnv" :key="v.key" class="flex items-center gap-2 text-xs font-mono">
+            <span class="text-accent">{{ v.key }}</span>
             <span class="text-text-tertiary">=</span>
             <span class="text-text-secondary">{{ v.value || '••••••' }}</span>
           </div>

@@ -268,7 +268,7 @@ async def execute_wizard(
     defaults = get_type_defaults(project_type)
     project_dir = APPS_DIR / name
 
-    # Step 1: Create project record
+    # Step 1: Create or update project record
     try:
         ghcr = _ghcr_image(github_repo)
         container_names = (
@@ -276,23 +276,45 @@ async def execute_wizard(
             if project_type == "blended"
             else {name: name}
         )
-        project = Project(
-            name=name,
-            display_name=display_name,
-            project_type=project_type,
-            github_repo=github_repo,
-            ghcr_image=ghcr,
-            domain=domain,
-            compose_path=str(project_dir),
-            container_names=container_names,
-            health_endpoint=health_endpoint or defaults["health_endpoint"],
-            webhook_secret=webhook_secret,
-            database_name=database_name if create_db else None,
-            status="active",
-        )
-        db.add(project)
-        await db.flush()
-        steps.append({"step": 1, "name": "Create project record", "status": "complete", "message": f"Project '{display_name}' registered"})
+
+        # Check if project already exists (from scan or previous attempt)
+        from sqlalchemy import select
+        existing_result = await db.execute(select(Project).where(Project.name == name))
+        project = existing_result.scalar_one_or_none()
+
+        if project:
+            # Update existing record
+            project.display_name = display_name
+            project.project_type = project_type
+            project.github_repo = github_repo
+            project.ghcr_image = ghcr
+            project.domain = domain
+            project.compose_path = str(project_dir)
+            project.container_names = container_names
+            project.health_endpoint = health_endpoint or defaults["health_endpoint"]
+            project.database_name = database_name if create_db else None
+            project.status = "active"
+            webhook_secret = project.webhook_secret or webhook_secret
+            await db.flush()
+            steps.append({"step": 1, "name": "Update project record", "status": "complete", "message": f"Project '{display_name}' updated (already existed)"})
+        else:
+            project = Project(
+                name=name,
+                display_name=display_name,
+                project_type=project_type,
+                github_repo=github_repo,
+                ghcr_image=ghcr,
+                domain=domain,
+                compose_path=str(project_dir),
+                container_names=container_names,
+                health_endpoint=health_endpoint or defaults["health_endpoint"],
+                webhook_secret=webhook_secret,
+                database_name=database_name if create_db else None,
+                status="active",
+            )
+            db.add(project)
+            await db.flush()
+            steps.append({"step": 1, "name": "Create project record", "status": "complete", "message": f"Project '{display_name}' registered"})
     except Exception as exc:
         steps.append({"step": 1, "name": "Create project record", "status": "error", "message": str(exc)})
         return _build_response("", "", steps)

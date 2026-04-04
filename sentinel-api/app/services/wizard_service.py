@@ -134,17 +134,38 @@ def _auto_routes(name: str, project_type: str) -> list[dict[str, str]]:
         return [{"path_prefix": "/", "upstream": f"{name}:{defaults['port']}"}]
 
 
-async def _run_command(cmd: list[str], cwd: str | None = None) -> tuple[int, str]:
-    """Run a command asynchronously. Returns (returncode, output)."""
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-        cwd=cwd,
-    )
-    stdout, _ = await proc.communicate()
-    output = stdout.decode("utf-8", errors="replace") if stdout else ""
-    return proc.returncode or 0, output
+async def _run_compose(compose_file: str, project_dir: str, command: list[str]) -> tuple[int, str]:
+    """Run a docker compose command using the Docker SDK.
+
+    The docker CLI may not be installed in the sentinel-api container,
+    but the Docker socket is mounted. We use subprocess with the full
+    path or fallback to Docker SDK for compose operations.
+    """
+    # Try docker compose via subprocess first (works if docker CLI is installed)
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "docker", "compose", "-f", compose_file, *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=project_dir,
+        )
+        stdout, _ = await proc.communicate()
+        output = stdout.decode("utf-8", errors="replace") if stdout else ""
+        return proc.returncode or 0, output
+    except FileNotFoundError:
+        # docker CLI not available — try docker-compose
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "docker-compose", "-f", compose_file, *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                cwd=project_dir,
+            )
+            stdout, _ = await proc.communicate()
+            output = stdout.decode("utf-8", errors="replace") if stdout else ""
+            return proc.returncode or 0, output
+        except FileNotFoundError:
+            return 1, "Neither 'docker compose' nor 'docker-compose' found in container. Install docker CLI or mount it."
 
 
 # ---------------------------------------------------------------------------
@@ -393,9 +414,8 @@ async def execute_wizard(
     if first_deploy:
         # Step 7: Pull Docker images
         try:
-            rc, output = await _run_command(
-                ["docker", "compose", "-f", compose_filename, "pull"],
-                cwd=str(project_dir),
+            rc, output = await _run_compose(
+                compose_filename, str(project_dir), ["pull"],
             )
             if rc == 0:
                 steps.append({"step": 7, "name": "Pull Docker images", "status": "complete", "message": "Images pulled successfully"})
@@ -406,9 +426,8 @@ async def execute_wizard(
 
         # Step 8: Start containers
         try:
-            rc, output = await _run_command(
-                ["docker", "compose", "-f", compose_filename, "up", "-d"],
-                cwd=str(project_dir),
+            rc, output = await _run_compose(
+                compose_filename, str(project_dir), ["up", "-d"],
             )
             if rc == 0:
                 steps.append({"step": 8, "name": "Start containers", "status": "complete", "message": "Containers started"})

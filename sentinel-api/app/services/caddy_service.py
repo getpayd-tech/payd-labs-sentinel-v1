@@ -220,25 +220,29 @@ async def remove_domain(domain: str) -> None:
 
 
 async def reload_caddy() -> dict[str, Any]:
-    """Reload the Caddy configuration inside the caddy-proxy container."""
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "docker", "exec", "caddy-proxy",
-            "caddy", "reload",
-            "--config", "/etc/caddy/Caddyfile",
-            "--adapter", "caddyfile",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-        stdout, _ = await proc.communicate()
-        output = stdout.decode("utf-8", errors="replace") if stdout else ""
+    """Reload the Caddy configuration inside the caddy-proxy container.
 
-        if proc.returncode == 0:
-            logger.info("Caddy reloaded successfully")
-            return {"success": True, "message": "Caddy reloaded successfully"}
-        else:
-            logger.error("Caddy reload failed (rc=%d): %s", proc.returncode, output)
-            return {"success": False, "message": f"Caddy reload failed: {output}"}
+    Uses the Docker SDK (via socket) since the docker CLI binary may not
+    be installed inside the sentinel-api container.
+    """
+    try:
+        import docker
+        client = docker.DockerClient.from_env()
+        try:
+            container = client.containers.get("caddy-proxy")
+            result = container.exec_run(
+                ["caddy", "reload", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"],
+            )
+            output = result.output.decode("utf-8", errors="replace") if result.output else ""
+
+            if result.exit_code == 0:
+                logger.info("Caddy reloaded successfully")
+                return {"success": True, "message": "Caddy reloaded successfully"}
+            else:
+                logger.error("Caddy reload failed (rc=%d): %s", result.exit_code, output)
+                return {"success": False, "message": f"Caddy reload failed: {output}"}
+        finally:
+            client.close()
     except Exception as exc:
         logger.error("Failed to reload Caddy: %s", exc)
         return {"success": False, "message": str(exc)}

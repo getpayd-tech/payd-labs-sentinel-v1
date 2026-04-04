@@ -70,7 +70,8 @@ export const wizardService = {
     caddy_routes?: CaddyRoute[]
     first_deploy?: boolean
   }): Promise<WizardResponse> {
-    const { data } = await api.post('/projects/wizard', request)
+    // Wizard can take 2+ minutes (docker pull + start + health check)
+    const { data } = await api.post('/projects/wizard', request, { timeout: 300000 })
     return data
   },
 }

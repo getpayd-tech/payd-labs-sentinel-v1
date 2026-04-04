@@ -97,7 +97,19 @@ def _generate_webhook_secret() -> str:
 
 
 def _ghcr_image(github_repo: str, suffix: str = "") -> str:
-    parts = github_repo.split("/")
+    # Strip common URL prefixes users might paste
+    clean = github_repo.strip()
+    for prefix in ("https://github.com/", "http://github.com/", "github.com/"):
+        if clean.lower().startswith(prefix):
+            clean = clean[len(prefix):]
+            break
+    # Remove trailing .git
+    if clean.endswith(".git"):
+        clean = clean[:-4]
+    # Remove trailing slashes
+    clean = clean.strip("/")
+
+    parts = clean.split("/")
     org = parts[0] if len(parts) > 1 else "getpayd-tech"
     repo = parts[-1]
     name = f"ghcr.io/{org}/{repo}"

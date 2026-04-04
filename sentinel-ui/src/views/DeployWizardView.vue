@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { wizardService, type TypeDefaults, type WizardResponse } from '@/services/wizard'
 import { useToast } from 'vue-toastification'
@@ -55,6 +55,75 @@ const form = reactive({
 })
 
 const SERVER_IP = '46.101.240.141'
+const DRAFT_KEY = 'sentinel_wizard_draft'
+
+// ─── Draft persistence ───
+function saveDraft() {
+  const draft = {
+    ...JSON.parse(JSON.stringify(form)),
+    currentStep: currentStep.value,
+  }
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+}
+
+function loadDraft(): boolean {
+  const raw = localStorage.getItem(DRAFT_KEY)
+  if (!raw) return false
+  try {
+    const draft = JSON.parse(raw)
+    Object.assign(form, {
+      project_type: draft.project_type || '',
+      github_repo: draft.github_repo || '',
+      name: draft.name || '',
+      display_name: draft.display_name || '',
+      domain: draft.domain || '',
+      tls_mode: draft.tls_mode || 'auto',
+      create_database: draft.create_database || false,
+      database_name: draft.database_name || '',
+      health_endpoint: draft.health_endpoint || '/health',
+      env_vars: draft.env_vars || [],
+      compose_filename: draft.compose_filename || 'docker-compose.yml',
+      use_custom_routes: draft.use_custom_routes || false,
+      caddy_routes: draft.caddy_routes || [],
+      first_deploy: draft.first_deploy ?? true,
+    })
+    currentStep.value = draft.currentStep || 1
+    return true
+  } catch {
+    return false
+  }
+}
+
+function clearDraft() {
+  localStorage.removeItem(DRAFT_KEY)
+}
+
+const hasDraft = ref(false)
+const showDraftBanner = ref(false)
+
+onMounted(() => {
+  const raw = localStorage.getItem(DRAFT_KEY)
+  if (raw) {
+    hasDraft.value = true
+    showDraftBanner.value = true
+  }
+})
+
+function resumeDraft() {
+  loadDraft()
+  showDraftBanner.value = false
+}
+
+function discardDraft() {
+  clearDraft()
+  showDraftBanner.value = false
+  hasDraft.value = false
+}
+
+// Auto-save draft on form changes (debounced via watch)
+watch([() => form, currentStep], () => {
+  if (form.project_type) saveDraft()
+}, { deep: true })
 
 // Auto-derive project name from repo
 watch(() => form.github_repo, (repo) => {
@@ -204,6 +273,7 @@ async function executeDeploy() {
       toast.warning(`Completed with ${errors.length} error(s)`)
     } else {
       toast.success('Project deployed successfully!')
+      clearDraft()
     }
   } catch (e: any) {
     toast.error(e.response?.data?.detail || 'Wizard execution failed')
@@ -235,6 +305,18 @@ const stepIcons = [Zap, Globe, Globe, Database, Key, Rocket]
         </Button>
       </template>
     </PageHeader>
+
+    <!-- Draft resume banner -->
+    <div v-if="showDraftBanner" class="card p-4 mb-4 flex items-center justify-between gap-3 border-accent/30 bg-accent/5">
+      <div class="flex items-center gap-2 text-sm">
+        <FileText class="w-4 h-4 text-accent shrink-0" />
+        <span class="text-text">You have an unsaved wizard draft. Resume where you left off?</span>
+      </div>
+      <div class="flex gap-2 shrink-0">
+        <Button variant="accent" size="xs" @click="resumeDraft">Resume</Button>
+        <Button variant="outline" size="xs" @click="discardDraft">Discard</Button>
+      </div>
+    </div>
 
     <!-- Step indicator -->
     <div class="flex items-center gap-1 mb-8 overflow-x-auto pb-2">

@@ -59,6 +59,26 @@ class TypeDefaults(BaseModel):
     default_routes: list[CaddyRoute] = []
 
 
+class WizardDraft(BaseModel):
+    """Saved wizard draft — all form state for resuming later."""
+    id: Optional[str] = None
+    name: str = ""
+    display_name: str = ""
+    project_type: str = ""
+    github_repo: str = ""
+    domain: str = ""
+    tls_mode: str = "auto"
+    create_database: bool = False
+    database_name: Optional[str] = None
+    env_vars: dict[str, str] = {}
+    health_endpoint: str = "/health"
+    compose_filename: str = "docker-compose.yml"
+    caddy_routes: list[CaddyRoute] = []
+    first_deploy: bool = True
+    current_step: int = 1
+    use_custom_routes: bool = False
+
+
 class WizardResponse(BaseModel):
     """Response from the wizard execution."""
     project_id: str

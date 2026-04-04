@@ -80,6 +80,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: 'Audit' },
   },
   {
+    path: '/docs',
+    name: 'Docs',
+    component: () => import('@/views/DocsView.vue'),
+    meta: { requiresAuth: true, title: 'Deploy Guide' },
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: () => import('@/views/NotFoundView.vue'),

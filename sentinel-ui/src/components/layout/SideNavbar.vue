@@ -10,6 +10,7 @@ import {
   ScrollText,
   Activity,
   ClipboardList,
+  BookOpen,
 } from 'lucide-vue-next'
 
 const emit = defineEmits<{
@@ -29,6 +30,7 @@ const navItems = [
   { name: 'Logs', path: '/logs', icon: ScrollText },
   { name: 'System', path: '/system', icon: Activity },
   { name: 'Audit', path: '/audit', icon: ClipboardList },
+  { name: 'Deploy Guide', path: '/docs', icon: BookOpen },
 ]
 
 function isActive(path: string): boolean {

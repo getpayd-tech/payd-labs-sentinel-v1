@@ -56,7 +56,7 @@ export const projectsService = {
   },
 
   async updateEnv(id: string, vars: Record<string, string>): Promise<void> {
-    await api.put(`/projects/${id}/env`, vars)
+    await api.put(`/projects/${id}/env`, { variables: vars })
   },
 
   async getTemplates(): Promise<TemplateInfo[]> {

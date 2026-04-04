@@ -12,7 +12,7 @@ import Modal from '@/components/ui/Modal.vue'
 import {
   ArrowLeft, Save, Plus, Trash2, Copy, Check,
   Globe, Github, Container, Database, Key,
-  ExternalLink, FolderGit2, RefreshCw,
+  ExternalLink, FolderGit2, RefreshCw, Eye, EyeOff,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -21,6 +21,7 @@ const queryClient = useQueryClient()
 const toast = useToast()
 const projectId = route.params.id as string
 const copied = ref('')
+const showEnvValues = ref(false)
 const showEnvModal = ref(false)
 const envVars = ref<{ key: string; value: string }[]>([])
 const savingEnv = ref(false)
@@ -233,13 +234,18 @@ function confirmDelete() {
       <div v-if="projectEnv && projectEnv.length > 0" class="card p-5">
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-sm font-heading font-semibold text-text">Environment Variables</h3>
-          <Button variant="outline" size="xs" @click="openEnvModal">Edit</Button>
+          <div class="flex gap-2">
+            <button class="p-1.5 rounded-md text-text-tertiary hover:text-text hover:bg-surface-tertiary transition-colors" :title="showEnvValues ? 'Hide values' : 'Show values'" @click="showEnvValues = !showEnvValues">
+              <component :is="showEnvValues ? EyeOff : Eye" class="w-4 h-4" />
+            </button>
+            <Button variant="outline" size="xs" @click="openEnvModal">Edit</Button>
+          </div>
         </div>
         <div class="space-y-1">
           <div v-for="v in projectEnv" :key="v.key" class="flex items-center gap-2 text-xs font-mono">
-            <span class="text-accent">{{ v.key }}</span>
+            <span class="text-accent shrink-0">{{ v.key }}</span>
             <span class="text-text-tertiary">=</span>
-            <span class="text-text-secondary">{{ v.value || '••••••' }}</span>
+            <span class="text-text-secondary break-all">{{ showEnvValues ? (v.value || '') : '••••••••' }}</span>
           </div>
         </div>
       </div>

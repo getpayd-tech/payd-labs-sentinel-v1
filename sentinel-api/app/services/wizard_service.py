@@ -1,11 +1,19 @@
 """Deploy wizard orchestration service.
 
-Handles the full project provisioning flow: create project record,
-generate docker-compose + Caddyfile + workflow artifacts, write files
-to disk, configure Caddy, and optionally create a PostgreSQL database.
+Handles the full project provisioning flow end-to-end:
+1. Create project record in DB
+2. Generate docker-compose file from template
+3. Write .env file
+4. Add Caddy domain route (with custom path routing)
+5. Reload Caddy
+6. Optionally create PostgreSQL database
+7. Pull Docker images (first deploy)
+8. Start containers
+9. Health check verification
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import secrets
 import string
@@ -16,12 +24,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.project import Project
 from app.services.caddy_service import add_domain, reload_caddy, _build_block
-from app.services.db_service import create_database
 
 logger = logging.getLogger(__name__)
 
 APPS_DIR = Path("/apps")
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
+SERVER_IP = "46.101.240.141"
 
 
 # ---------------------------------------------------------------------------
@@ -35,6 +43,7 @@ TYPE_DEFAULTS: dict[str, dict[str, Any]] = {
         "suggested_env": ["DATABASE_URL", "SECRET_KEY", "REDIS_URL", "APP_ENV", "CORS_ORIGINS"],
         "description": "Python FastAPI backend with health checks",
         "container_count": 1,
+        "default_routes": [],
     },
     "vue": {
         "port": 80,
@@ -42,6 +51,7 @@ TYPE_DEFAULTS: dict[str, dict[str, Any]] = {
         "suggested_env": [],
         "description": "Vue/Vite SPA served by Caddy",
         "container_count": 1,
+        "default_routes": [],
     },
     "blended": {
         "port": 8000,
@@ -49,6 +59,7 @@ TYPE_DEFAULTS: dict[str, dict[str, Any]] = {
         "suggested_env": ["DATABASE_URL", "SECRET_KEY", "REDIS_URL", "APP_ENV", "CORS_ORIGINS"],
         "description": "FastAPI backend + Vue frontend (two containers)",
         "container_count": 2,
+        "default_routes": [],
     },
     "nuxt": {
         "port": 3000,
@@ -56,6 +67,7 @@ TYPE_DEFAULTS: dict[str, dict[str, Any]] = {
         "suggested_env": ["NUXT_PUBLIC_API_BASE", "DATABASE_URL", "SECRET_KEY"],
         "description": "Nuxt 3 SSR application",
         "container_count": 1,
+        "default_routes": [],
     },
     "laravel": {
         "port": 8000,
@@ -63,17 +75,20 @@ TYPE_DEFAULTS: dict[str, dict[str, Any]] = {
         "suggested_env": ["APP_KEY", "APP_ENV", "DB_CONNECTION", "DB_HOST", "DB_PORT", "DB_DATABASE", "DB_USERNAME", "DB_PASSWORD", "REDIS_HOST"],
         "description": "Laravel PHP application",
         "container_count": 1,
+        "default_routes": [],
     },
 }
 
 
 def get_type_defaults(project_type: str) -> dict[str, Any]:
     """Return default config values for a project type."""
-    return TYPE_DEFAULTS.get(project_type, TYPE_DEFAULTS["fastapi"])
+    defaults = TYPE_DEFAULTS.get(project_type, TYPE_DEFAULTS["fastapi"]).copy()
+    # default_routes are generated dynamically based on project name, so leave empty here
+    return defaults
 
 
 # ---------------------------------------------------------------------------
-# Artifact generation
+# Helpers
 # ---------------------------------------------------------------------------
 
 def _generate_webhook_secret() -> str:
@@ -82,7 +97,6 @@ def _generate_webhook_secret() -> str:
 
 
 def _ghcr_image(github_repo: str, suffix: str = "") -> str:
-    """Derive GHCR image path from GitHub repo."""
     parts = github_repo.split("/")
     org = parts[0] if len(parts) > 1 else "getpayd-tech"
     repo = parts[-1]
@@ -92,21 +106,52 @@ def _ghcr_image(github_repo: str, suffix: str = "") -> str:
     return name
 
 
+def _auto_routes(name: str, project_type: str) -> list[dict[str, str]]:
+    """Generate default Caddy proxy targets from project type."""
+    defaults = TYPE_DEFAULTS.get(project_type, TYPE_DEFAULTS["fastapi"])
+    if project_type == "blended":
+        return [
+            {"path_prefix": "/api", "upstream": f"{name}-api:8000"},
+            {"path_prefix": "/", "upstream": f"{name}-ui:80"},
+        ]
+    elif project_type == "vue":
+        return [{"path_prefix": "/", "upstream": f"{name}:80"}]
+    elif project_type == "nuxt":
+        return [{"path_prefix": "/", "upstream": f"{name}:3000"}]
+    else:
+        return [{"path_prefix": "/", "upstream": f"{name}:{defaults['port']}"}]
+
+
+async def _run_command(cmd: list[str], cwd: str | None = None) -> tuple[int, str]:
+    """Run a command asynchronously. Returns (returncode, output)."""
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        cwd=cwd,
+    )
+    stdout, _ = await proc.communicate()
+    output = stdout.decode("utf-8", errors="replace") if stdout else ""
+    return proc.returncode or 0, output
+
+
+# ---------------------------------------------------------------------------
+# Artifact generation
+# ---------------------------------------------------------------------------
+
 def generate_compose(
     name: str,
     project_type: str,
     github_repo: str,
     health_endpoint: str = "/health",
 ) -> str:
-    """Generate docker-compose.yml content from a template."""
+    """Generate docker-compose content from a template."""
     defaults = get_type_defaults(project_type)
     template_file = TEMPLATES_DIR / "compose" / f"{project_type}.yml"
-
     if not template_file.exists():
         template_file = TEMPLATES_DIR / "compose" / "fastapi.yml"
 
     template = template_file.read_text()
-
     ghcr = _ghcr_image(github_repo)
 
     replacements = {
@@ -121,7 +166,6 @@ def generate_compose(
     content = template
     for placeholder, value in replacements.items():
         content = content.replace(placeholder, value)
-
     return content
 
 
@@ -130,25 +174,13 @@ def generate_caddyfile_block(
     name: str,
     project_type: str,
     tls_mode: str = "auto",
+    custom_routes: list[dict[str, str]] | None = None,
 ) -> str:
-    """Generate a Caddyfile block for the project."""
-    defaults = get_type_defaults(project_type)
-
-    if project_type == "blended":
-        targets = [
-            {"path_prefix": "/api", "upstream": f"{name}-api:8000"},
-            {"path_prefix": "/", "upstream": f"{name}-ui:80"},
-        ]
-    elif project_type == "vue":
-        targets = [{"path_prefix": "/", "upstream": f"{name}:80"}]
-    elif project_type == "nuxt":
-        targets = [{"path_prefix": "/", "upstream": f"{name}:3000"}]
-    elif project_type == "laravel":
-        targets = [{"path_prefix": "/", "upstream": f"{name}:8000"}]
+    """Generate a Caddyfile block. Uses custom_routes if provided, else auto-generates."""
+    if custom_routes:
+        targets = [{"path_prefix": r["path"], "upstream": r["upstream"]} for r in custom_routes]
     else:
-        # fastapi or custom
-        targets = [{"path_prefix": "/", "upstream": f"{name}:{defaults['port']}"}]
-
+        targets = _auto_routes(name, project_type)
     return _build_block(domain, targets, tls_mode=tls_mode)
 
 
@@ -161,24 +193,18 @@ def generate_workflow(
     """Generate GitHub Actions workflow content."""
     template_file = TEMPLATES_DIR / "workflow" / "deploy.yml"
     template = template_file.read_text()
-
     ghcr = _ghcr_image(github_repo)
-    build_context = "."
-    if project_type == "blended":
-        # For blended, the workflow needs 2 build steps — provide a note
-        build_context = "."  # User will need to customize
 
     replacements = {
         "{PROJECT_NAME}": name,
         "{DISPLAY_NAME}": display_name,
         "{GHCR_IMAGE}": ghcr,
-        "{BUILD_CONTEXT}": build_context,
+        "{BUILD_CONTEXT}": ".",
     }
 
     content = template
     for placeholder, value in replacements.items():
         content = content.replace(placeholder, value)
-
     return content
 
 
@@ -194,11 +220,12 @@ def preview_artifacts(
     domain: str,
     tls_mode: str = "auto",
     health_endpoint: str = "/health",
+    custom_routes: list[dict[str, str]] | None = None,
 ) -> dict[str, str]:
     """Generate all artifacts as strings without writing to disk."""
     return {
         "compose": generate_compose(name, project_type, github_repo, health_endpoint),
-        "caddyfile": generate_caddyfile_block(domain, name, project_type, tls_mode) if domain else "",
+        "caddyfile": generate_caddyfile_block(domain, name, project_type, tls_mode, custom_routes) if domain else "",
         "workflow": generate_workflow(name, display_name, project_type, github_repo),
     }
 
@@ -219,11 +246,15 @@ async def execute_wizard(
     database_name: str | None = None,
     env_vars: dict[str, str] | None = None,
     health_endpoint: str = "/health",
+    compose_filename: str = "docker-compose.yml",
+    custom_routes: list[dict[str, str]] | None = None,
+    first_deploy: bool = True,
 ) -> dict[str, Any]:
-    """Execute the full wizard: create project, provision files, configure Caddy, optionally create DB."""
+    """Execute the full wizard end-to-end."""
     steps: list[dict[str, Any]] = []
     webhook_secret = _generate_webhook_secret()
     defaults = get_type_defaults(project_type)
+    project_dir = APPS_DIR / name
 
     # Step 1: Create project record
     try:
@@ -233,7 +264,6 @@ async def execute_wizard(
             if project_type == "blended"
             else {name: name}
         )
-
         project = Project(
             name=name,
             display_name=display_name,
@@ -241,7 +271,7 @@ async def execute_wizard(
             github_repo=github_repo,
             ghcr_image=ghcr,
             domain=domain,
-            compose_path=str(APPS_DIR / name),
+            compose_path=str(project_dir),
             container_names=container_names,
             health_endpoint=health_endpoint or defaults["health_endpoint"],
             webhook_secret=webhook_secret,
@@ -253,82 +283,154 @@ async def execute_wizard(
         steps.append({"step": 1, "name": "Create project record", "status": "complete", "message": f"Project '{display_name}' registered"})
     except Exception as exc:
         steps.append({"step": 1, "name": "Create project record", "status": "error", "message": str(exc)})
-        return {"project_id": "", "webhook_secret": "", "compose_preview": "", "caddyfile_preview": "", "workflow_preview": "", "steps": steps}
+        return _build_response("", "", steps)
 
-    # Step 2: Create directory + docker-compose.yml
+    # Step 2: Create directory + compose file
     try:
-        project_dir = APPS_DIR / name
         project_dir.mkdir(parents=True, exist_ok=True)
-
         compose_content = generate_compose(name, project_type, github_repo, health_endpoint)
-        (project_dir / "docker-compose.yml").write_text(compose_content)
-        steps.append({"step": 2, "name": "Generate docker-compose.yml", "status": "complete", "message": f"Written to {project_dir}/docker-compose.yml"})
+        (project_dir / compose_filename).write_text(compose_content)
+        steps.append({"step": 2, "name": f"Write {compose_filename}", "status": "complete", "message": f"Written to {project_dir}/{compose_filename}"})
     except Exception as exc:
-        steps.append({"step": 2, "name": "Generate docker-compose.yml", "status": "error", "message": str(exc)})
+        steps.append({"step": 2, "name": f"Write {compose_filename}", "status": "error", "message": str(exc)})
 
     # Step 3: Write .env file
     try:
         env_content = "\n".join(f"{k}={v}" for k, v in (env_vars or {}).items())
         if env_content:
             (project_dir / ".env").write_text(env_content + "\n")
-            steps.append({"step": 3, "name": "Write environment file", "status": "complete", "message": f"{len(env_vars or {})} variables written"})
+            steps.append({"step": 3, "name": "Write .env file", "status": "complete", "message": f"{len(env_vars or {})} variables written"})
         else:
-            steps.append({"step": 3, "name": "Write environment file", "status": "complete", "message": "No env vars provided, skipped"})
+            steps.append({"step": 3, "name": "Write .env file", "status": "complete", "message": "No env vars provided, skipped"})
     except Exception as exc:
-        steps.append({"step": 3, "name": "Write environment file", "status": "error", "message": str(exc)})
+        steps.append({"step": 3, "name": "Write .env file", "status": "error", "message": str(exc)})
 
     # Step 4: Add Caddy domain route
     caddyfile_block = ""
     if domain:
         try:
-            if project_type == "blended":
-                targets = [
-                    {"path_prefix": "/api", "upstream": f"{name}-api:8000"},
-                    {"path_prefix": "/", "upstream": f"{name}-ui:80"},
-                ]
-            elif project_type == "vue":
-                targets = [{"path_prefix": "/", "upstream": f"{name}:80"}]
-            elif project_type == "nuxt":
-                targets = [{"path_prefix": "/", "upstream": f"{name}:3000"}]
+            if custom_routes:
+                targets = [{"path_prefix": r["path"], "upstream": r["upstream"]} for r in custom_routes]
             else:
-                targets = [{"path_prefix": "/", "upstream": f"{name}:{defaults['port']}"}]
+                targets = _auto_routes(name, project_type)
 
             await add_domain(domain, targets, tls_mode=tls_mode)
-            caddyfile_block = generate_caddyfile_block(domain, name, project_type, tls_mode)
+            caddyfile_block = generate_caddyfile_block(domain, name, project_type, tls_mode, custom_routes)
             steps.append({"step": 4, "name": "Configure Caddy domain", "status": "complete", "message": f"Route added for {domain}"})
+        except Exception as exc:
+            steps.append({"step": 4, "name": "Configure Caddy domain", "status": "error", "message": str(exc)})
+            caddyfile_block = generate_caddyfile_block(domain, name, project_type, tls_mode, custom_routes)
+    else:
+        steps.append({"step": 4, "name": "Configure Caddy domain", "status": "complete", "message": "No domain specified, skipped"})
 
-            # Reload Caddy
+    # Step 5: Reload Caddy
+    if domain:
+        try:
             result = await reload_caddy()
             if result["success"]:
                 steps.append({"step": 5, "name": "Reload Caddy", "status": "complete", "message": "Caddy reloaded successfully"})
             else:
                 steps.append({"step": 5, "name": "Reload Caddy", "status": "error", "message": result["message"]})
         except Exception as exc:
-            steps.append({"step": 4, "name": "Configure Caddy domain", "status": "error", "message": str(exc)})
-            caddyfile_block = generate_caddyfile_block(domain, name, project_type, tls_mode)
+            steps.append({"step": 5, "name": "Reload Caddy", "status": "error", "message": str(exc)})
     else:
-        steps.append({"step": 4, "name": "Configure Caddy domain", "status": "complete", "message": "No domain specified, skipped"})
+        steps.append({"step": 5, "name": "Reload Caddy", "status": "complete", "message": "Skipped (no domain)"})
 
     # Step 6: Create database (optional)
     if create_db and database_name:
         try:
-            db_password = _generate_webhook_secret()  # reuse secret generator for DB password
+            from app.services.db_service import create_database
+            db_password = _generate_webhook_secret()
             await create_database(database_name, db_password)
-            steps.append({"step": 6, "name": "Create PostgreSQL database", "status": "complete", "message": f"Database '{database_name}' created"})
+            steps.append({"step": 6, "name": "Create PostgreSQL database", "status": "complete", "message": f"Database '{database_name}' created (user: {database_name})"})
         except Exception as exc:
             steps.append({"step": 6, "name": "Create PostgreSQL database", "status": "error", "message": str(exc)})
     else:
-        steps.append({"step": 6, "name": "Create PostgreSQL database", "status": "complete", "message": "Skipped (not requested)"})
+        steps.append({"step": 6, "name": "Create PostgreSQL database", "status": "complete", "message": "Skipped"})
 
-    # Generate workflow preview
-    workflow = generate_workflow(name, display_name, project_type, github_repo)
+    # Step 7-9: First deploy (pull, start, health check)
+    if first_deploy:
+        # Step 7: Pull Docker images
+        try:
+            rc, output = await _run_command(
+                ["docker", "compose", "-f", compose_filename, "pull"],
+                cwd=str(project_dir),
+            )
+            if rc == 0:
+                steps.append({"step": 7, "name": "Pull Docker images", "status": "complete", "message": "Images pulled successfully"})
+            else:
+                steps.append({"step": 7, "name": "Pull Docker images", "status": "error", "message": output.strip()[-200:]})
+        except Exception as exc:
+            steps.append({"step": 7, "name": "Pull Docker images", "status": "error", "message": str(exc)})
+
+        # Step 8: Start containers
+        try:
+            rc, output = await _run_command(
+                ["docker", "compose", "-f", compose_filename, "up", "-d"],
+                cwd=str(project_dir),
+            )
+            if rc == 0:
+                steps.append({"step": 8, "name": "Start containers", "status": "complete", "message": "Containers started"})
+            else:
+                steps.append({"step": 8, "name": "Start containers", "status": "error", "message": output.strip()[-200:]})
+        except Exception as exc:
+            steps.append({"step": 8, "name": "Start containers", "status": "error", "message": str(exc)})
+
+        # Step 9: Health check
+        if health_endpoint and domain:
+            try:
+                healthy = await _health_check(domain, health_endpoint)
+                if healthy:
+                    steps.append({"step": 9, "name": "Health check", "status": "complete", "message": f"https://{domain}{health_endpoint} is responding"})
+                else:
+                    steps.append({"step": 9, "name": "Health check", "status": "error", "message": f"Health check failed after 60s — containers may still be starting"})
+            except Exception as exc:
+                steps.append({"step": 9, "name": "Health check", "status": "error", "message": str(exc)})
+        else:
+            steps.append({"step": 9, "name": "Health check", "status": "complete", "message": "Skipped (no health endpoint or domain)"})
+    else:
+        steps.append({"step": 7, "name": "Pull Docker images", "status": "complete", "message": "Skipped (first deploy disabled)"})
+        steps.append({"step": 8, "name": "Start containers", "status": "complete", "message": "Skipped"})
+        steps.append({"step": 9, "name": "Health check", "status": "complete", "message": "Skipped"})
+
     compose = generate_compose(name, project_type, github_repo, health_endpoint)
+    workflow = generate_workflow(name, display_name, project_type, github_repo)
 
     return {
         "project_id": project.id,
         "webhook_secret": webhook_secret,
         "compose_preview": compose,
-        "caddyfile_preview": caddyfile_block or generate_caddyfile_block(domain, name, project_type, tls_mode),
+        "caddyfile_preview": caddyfile_block or generate_caddyfile_block(domain, name, project_type, tls_mode, custom_routes),
         "workflow_preview": workflow,
+        "steps": steps,
+    }
+
+
+async def _health_check(domain: str, health_endpoint: str, retries: int = 12, interval: int = 5) -> bool:
+    """Check if the service is healthy by hitting its health endpoint."""
+    import httpx
+
+    url = f"https://{domain}{health_endpoint}"
+    for attempt in range(retries):
+        try:
+            async with httpx.AsyncClient(verify=False, timeout=10) as client:
+                resp = await client.get(url)
+                if 200 <= resp.status_code < 400:
+                    return True
+        except Exception:
+            pass
+        if attempt < retries - 1:
+            await asyncio.sleep(interval)
+    return False
+
+
+def _build_response(project_id: str, webhook_secret: str, steps: list) -> dict[str, Any]:
+    """Build an error response when wizard fails early."""
+    return {
+        "project_id": project_id,
+        "webhook_secret": webhook_secret,
+        "compose_preview": "",
+        "caddyfile_preview": "",
+        "workflow_preview": "",
         "steps": steps,
     }

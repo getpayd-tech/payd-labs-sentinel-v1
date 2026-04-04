@@ -90,6 +90,7 @@ async def wizard_preview(
     claims: dict = Depends(require_admin),
 ):
     """Preview generated artifacts (compose, Caddyfile, workflow) without executing."""
+    custom_routes = [{"path": r.path, "upstream": r.upstream} for r in body.caddy_routes] if body.caddy_routes else None
     artifacts = preview_artifacts(
         name=body.name,
         display_name=body.display_name or body.name.replace("-", " ").title(),
@@ -98,6 +99,7 @@ async def wizard_preview(
         domain=body.domain,
         tls_mode=body.tls_mode,
         health_endpoint=body.health_endpoint,
+        custom_routes=custom_routes,
     )
     return artifacts
 
@@ -110,6 +112,7 @@ async def wizard_execute(
     claims: dict = Depends(require_admin),
 ):
     """Execute the full deploy wizard — provision project, files, Caddy, and optionally database."""
+    custom_routes = [{"path": r.path, "upstream": r.upstream} for r in body.caddy_routes] if body.caddy_routes else None
     result = await execute_wizard(
         db=db,
         name=body.name,
@@ -122,6 +125,9 @@ async def wizard_execute(
         database_name=body.database_name,
         env_vars=body.env_vars,
         health_endpoint=body.health_endpoint,
+        compose_filename=body.compose_filename,
+        custom_routes=custom_routes,
+        first_deploy=body.first_deploy,
     )
 
     await log_action(

@@ -8,6 +8,11 @@ export interface TypeDefaults {
   container_count: number
 }
 
+export interface CaddyRoute {
+  path: string
+  upstream: string
+}
+
 export interface WizardPreview {
   compose: string
   caddyfile: string
@@ -44,6 +49,7 @@ export const wizardService = {
     domain?: string
     tls_mode?: string
     health_endpoint?: string
+    caddy_routes?: CaddyRoute[]
   }): Promise<WizardPreview> {
     const { data } = await api.post('/projects/wizard/preview', request)
     return data
@@ -60,6 +66,9 @@ export const wizardService = {
     database_name?: string
     env_vars?: Record<string, string>
     health_endpoint?: string
+    compose_filename?: string
+    caddy_routes?: CaddyRoute[]
+    first_deploy?: boolean
   }): Promise<WizardResponse> {
     const { data } = await api.post('/projects/wizard', request)
     return data

@@ -6,8 +6,14 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
+class CaddyRoute(BaseModel):
+    """A single Caddy reverse proxy route path."""
+    path: str = Field(..., description="Path pattern, e.g. '/api/*'")
+    upstream: str = Field(..., description="Upstream target, e.g. 'offline-api:8000'")
+
+
 class WizardRequest(BaseModel):
-    """Full wizard payload for project provisioning."""
+    """Full wizard payload for project provisioning + first deploy."""
     name: str = Field(..., pattern=r"^[a-z0-9][a-z0-9\-]*$", min_length=2, max_length=64)
     display_name: str = Field(..., min_length=1)
     project_type: str = Field(..., description="fastapi | vue | blended | nuxt | laravel")
@@ -18,6 +24,9 @@ class WizardRequest(BaseModel):
     database_name: Optional[str] = None
     env_vars: dict[str, str] = {}
     health_endpoint: str = "/health"
+    compose_filename: str = Field("docker-compose.yml", description="Compose file name")
+    caddy_routes: list[CaddyRoute] = Field([], description="Custom Caddy routes. Empty = auto-generate from type")
+    first_deploy: bool = Field(True, description="Pull and start containers after provisioning")
 
 
 class WizardPreviewRequest(BaseModel):
@@ -29,6 +38,7 @@ class WizardPreviewRequest(BaseModel):
     domain: str = ""
     tls_mode: str = "auto"
     health_endpoint: str = "/health"
+    caddy_routes: list[CaddyRoute] = []
 
 
 class WizardStep(BaseModel):
@@ -46,6 +56,7 @@ class TypeDefaults(BaseModel):
     suggested_env: list[str] = []
     description: str = ""
     container_count: int = 1
+    default_routes: list[CaddyRoute] = []
 
 
 class WizardResponse(BaseModel):

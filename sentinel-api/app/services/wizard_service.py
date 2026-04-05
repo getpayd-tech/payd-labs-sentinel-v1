@@ -418,6 +418,21 @@ async def execute_wizard(
 
     # Step 7-9: First deploy (pull, start, health check)
     if first_deploy:
+        # GHCR login before pulling
+        from app.config import settings as app_settings
+        if app_settings.ghcr_token:
+            try:
+                login_proc = await asyncio.create_subprocess_exec(
+                    "docker", "login", "ghcr.io",
+                    "-u", app_settings.ghcr_user, "--password-stdin",
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT,
+                )
+                await login_proc.communicate(input=app_settings.ghcr_token.encode())
+            except Exception:
+                pass
+
         # Step 7: Pull Docker images
         try:
             rc, output = await _run_compose(

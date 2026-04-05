@@ -99,6 +99,29 @@ async def _health_check(project: Project) -> bool:
     return False
 
 
+async def _ghcr_login(logs: list[str]) -> None:
+    """Login to GHCR using configured credentials. Skips if not configured."""
+    from app.config import settings
+    if not settings.ghcr_token:
+        return
+
+    logs.append("=== GHCR login ===")
+    proc = await asyncio.create_subprocess_exec(
+        "docker", "login", "ghcr.io",
+        "-u", settings.ghcr_user,
+        "--password-stdin",
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    stdout, _ = await proc.communicate(input=settings.ghcr_token.encode())
+    output = stdout.decode("utf-8", errors="replace") if stdout else ""
+    if proc.returncode == 0:
+        logs.append("GHCR login successful")
+    else:
+        logs.append(f"GHCR login failed: {output}")
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -137,6 +160,9 @@ async def trigger_deployment(
     all_logs: list[str] = []
 
     try:
+        # GHCR login (ensures auth is fresh before pulling)
+        await _ghcr_login(all_logs)
+
         # Pull
         all_logs.append("=== docker compose pull ===")
         rc, output = await _run_command(["docker", "compose", "pull"], cwd=compose_dir)

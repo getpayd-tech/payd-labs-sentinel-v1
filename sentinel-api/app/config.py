@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     pg_admin_database: str = "defaultdb"
     pg_admin_sslmode: str = "require"
 
+    # GHCR authentication for pulling private images during deploys
+    ghcr_user: str = "getpayd-tech"
+    ghcr_token: str = ""
+
     # Encryption key for env var storage (Fernet)
     encryption_key: str = ""
 

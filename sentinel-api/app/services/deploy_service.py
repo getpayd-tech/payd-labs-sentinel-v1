@@ -237,6 +237,8 @@ async def rollback_deployment(
     all_logs: list[str] = [f"Rolling back to deployment {target_deployment.id} (tag: {target_deployment.image_tag})"]
 
     try:
+        await _ghcr_login(all_logs)
+
         all_logs.append("=== docker compose pull ===")
         rc, output = await _run_command(["docker", "compose", "pull"], cwd=compose_dir)
         all_logs.append(output)

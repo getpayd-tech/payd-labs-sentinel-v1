@@ -555,9 +555,6 @@ APP_ENV=production"
           <p class="text-xs text-text-secondary">Add these to your repo at <code class="bg-surface-tertiary px-1 rounded">github.com/{{ form.github_repo }}/settings/secrets/actions</code></p>
           <div class="space-y-2">
             <div v-for="secret in [
-              { name: 'DROPLET_IP', value: SERVER_IP },
-              { name: 'DROPLET_USER', value: 'deploy' },
-              { name: 'DROPLET_SSH_KEY', value: '(same SSH private key as other Payd projects)' },
               { name: 'SENTINEL_WEBHOOK_SECRET', value: result.webhook_secret },
             ]" :key="secret.name" class="flex items-center gap-2 text-xs">
               <code class="w-48 shrink-0 text-accent font-mono bg-surface-tertiary px-2 py-1 rounded">{{ secret.name }}</code>

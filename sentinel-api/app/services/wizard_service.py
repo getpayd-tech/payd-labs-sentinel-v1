@@ -224,7 +224,11 @@ def generate_workflow(
     github_repo: str,
 ) -> str:
     """Generate GitHub Actions workflow content."""
-    template_file = TEMPLATES_DIR / "workflow" / "deploy.yml"
+    if project_type == "blended":
+        template_file = TEMPLATES_DIR / "workflow" / "deploy-blended.yml"
+    else:
+        template_file = TEMPLATES_DIR / "workflow" / "deploy.yml"
+
     template = template_file.read_text()
     ghcr = _ghcr_image(github_repo)
 
@@ -232,6 +236,8 @@ def generate_workflow(
         "{PROJECT_NAME}": name,
         "{DISPLAY_NAME}": display_name,
         "{GHCR_IMAGE}": ghcr,
+        "{GHCR_IMAGE_API}": _ghcr_image(github_repo, "api"),
+        "{GHCR_IMAGE_UI}": _ghcr_image(github_repo, "ui"),
         "{BUILD_CONTEXT}": ".",
     }
 

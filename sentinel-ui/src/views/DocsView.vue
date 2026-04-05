@@ -51,8 +51,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
 
       # Build API image
-      - name: Build and push API
-        uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
@@ -64,8 +63,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=api
 
       # Build UI image
-      - name: Build and push UI
-        uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v6
         with:
           context: ./admin
           push: true
@@ -75,34 +73,15 @@ jobs:
           cache-from: type=gha,scope=ui
           cache-to: type=gha,mode=max,scope=ui
 
-      # Deploy
-      - name: Deploy to server
-        uses: appleboy/ssh-action@v1
-        env:
-          GHCR_TOKEN: \${{ secrets.GITHUB_TOKEN }}
-        with:
-          host: \${{ secrets.DROPLET_IP }}
-          username: \${{ secrets.DROPLET_USER }}
-          key: \${{ secrets.DROPLET_SSH_KEY }}
-          envs: GHCR_TOKEN
-          script: |
-            set -e
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u getpayd-tech --password-stdin
-            cd /apps/MY-PROJECT
-            docker compose pull
-            docker compose up -d
-
-            echo "Waiting for health check..."
-            for i in $(seq 1 12); do
-              if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
-                echo "Healthy!"
-                break
-              fi
-              [ "$i" -eq 12 ] && echo "Failed" && exit 1
-              sleep 5
-            done
-
-            docker image prune -f`
+      # Deploy via Sentinel (no SSH needed)
+      - name: Deploy via Sentinel
+        run: |
+          PAYLOAD='{"project":"MY-PROJECT","image_tag":"\${{ github.sha }}","triggered_by":"\${{ github.actor }}"}'
+          SIGNATURE=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "\${{ secrets.SENTINEL_WEBHOOK_SECRET }}" | awk '{print $2}')
+          curl -sf -X POST https://sentinel.paydlabs.com/api/v1/deployments/webhook \\
+            -H "X-Hub-Signature-256: sha256=$SIGNATURE" \\
+            -H "Content-Type: application/json" \\
+            -d "$PAYLOAD"`
 
 const singleWorkflow = `name: Deploy My App
 
@@ -128,8 +107,7 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Build and push
-        uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v6
         with:
           context: .
           push: true
@@ -139,22 +117,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Deploy to server
-        uses: appleboy/ssh-action@v1
-        env:
-          GHCR_TOKEN: \${{ secrets.GITHUB_TOKEN }}
-        with:
-          host: \${{ secrets.DROPLET_IP }}
-          username: \${{ secrets.DROPLET_USER }}
-          key: \${{ secrets.DROPLET_SSH_KEY }}
-          envs: GHCR_TOKEN
-          script: |
-            set -e
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u getpayd-tech --password-stdin
-            cd /apps/MY-APP
-            docker compose pull
-            docker compose up -d
-            docker image prune -f`
+      # Deploy via Sentinel (no SSH needed)
+      - name: Deploy via Sentinel
+        run: |
+          PAYLOAD='{"project":"MY-APP","image_tag":"\${{ github.sha }}","triggered_by":"\${{ github.actor }}"}'
+          SIGNATURE=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "\${{ secrets.SENTINEL_WEBHOOK_SECRET }}" | awk '{print $2}')
+          curl -sf -X POST https://sentinel.paydlabs.com/api/v1/deployments/webhook \\
+            -H "X-Hub-Signature-256: sha256=$SIGNATURE" \\
+            -H "Content-Type: application/json" \\
+            -d "$PAYLOAD"`
 
 const fastapiDockerfile = `FROM python:3.12-slim AS builder
 RUN apt-get update && apt-get install -y gcc libpq-dev && rm -rf /var/lib/apt/lists/*
@@ -292,19 +263,14 @@ CMD ["node", ".output/server/index.mjs"]`
         <div v-if="isOpen('secrets')" class="px-5 pb-5 text-sm text-text-secondary space-y-3 border-t border-border pt-4">
           <p>Go to your repo's <strong class="text-text">Settings &rarr; Secrets and variables &rarr; Actions</strong> and add:</p>
           <div class="space-y-2">
-            <div v-for="secret in [
-              { name: 'DROPLET_IP', value: '46.101.240.141', desc: 'Server IP address' },
-              { name: 'DROPLET_USER', value: 'deploy', desc: 'SSH user' },
-              { name: 'DROPLET_SSH_KEY', value: '', desc: 'SSH private key (same as other Payd projects)' },
-            ]" :key="secret.name" class="flex items-center gap-2">
-              <code class="w-40 shrink-0 text-accent font-mono bg-surface-tertiary px-2 py-1 rounded text-xs">{{ secret.name }}</code>
-              <span class="flex-1 text-xs">{{ secret.desc }}</span>
-              <button v-if="secret.value" class="p-1 rounded text-text-tertiary hover:text-accent transition-colors" @click="copy(secret.value, secret.name)">
-                <component :is="copied === secret.name ? Check : Copy" class="w-3.5 h-3.5" />
-              </button>
+            <div class="flex items-center gap-2">
+              <code class="w-56 shrink-0 text-accent font-mono bg-surface-tertiary px-2 py-1 rounded text-xs">SENTINEL_WEBHOOK_SECRET</code>
+              <span class="flex-1 text-xs">From the project's detail page in Sentinel (auto-generated)</span>
             </div>
           </div>
-          <p class="text-xs"><code class="bg-surface-tertiary px-1 rounded">GITHUB_TOKEN</code> is automatic — no need to add it.</p>
+          <div class="p-3 mt-2 rounded-lg bg-surface-tertiary text-xs">
+            <strong class="text-text">That's it.</strong> No SSH keys, no server IP, no deploy user. Sentinel handles the deployment server-side via its Docker socket. <code class="bg-surface px-1 rounded">GITHUB_TOKEN</code> is automatic.
+          </div>
         </div>
       </div>
 

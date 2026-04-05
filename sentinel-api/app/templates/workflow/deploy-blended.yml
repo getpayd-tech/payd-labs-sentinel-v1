@@ -22,15 +22,28 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      # Build API image
       - uses: docker/build-push-action@v6
         with:
-          context: {BUILD_CONTEXT}
+          context: .
+          file: ./Dockerfile
           push: true
           tags: |
-            {GHCR_IMAGE}:latest
-            {GHCR_IMAGE}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            {GHCR_IMAGE_API}:latest
+            {GHCR_IMAGE_API}:${{ github.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      # Build UI image
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./admin
+          push: true
+          tags: |
+            {GHCR_IMAGE_UI}:latest
+            {GHCR_IMAGE_UI}:${{ github.sha }}
+          cache-from: type=gha,scope=ui
+          cache-to: type=gha,mode=max,scope=ui
 
       - name: Deploy via Sentinel
         run: |

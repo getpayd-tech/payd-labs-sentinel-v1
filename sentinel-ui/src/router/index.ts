@@ -118,7 +118,7 @@ function decodeJwt(token: string): Record<string, unknown> | null {
   }
 }
 
-// Auth guard — check sentinel_admin_token + is_admin claim
+// Auth guard - check sentinel_admin_token + is_admin claim
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('sentinel_admin_token')
   let isAuthenticated = false
@@ -141,7 +141,7 @@ router.beforeEach((to, _from, next) => {
 // Dynamic document title
 router.afterEach((to) => {
   const title = to.meta.title as string | undefined
-  document.title = title ? `${title} — Sentinel` : 'Sentinel'
+  document.title = title ? `${title} - Sentinel` : 'Sentinel'
 })
 
 export default router

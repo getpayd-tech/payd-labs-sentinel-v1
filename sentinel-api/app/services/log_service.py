@@ -46,7 +46,7 @@ def get_aggregated_logs(
         search: Text to filter log messages (case-insensitive substring match).
         level: Filter by log level (DEBUG, INFO, WARN, ERROR, CRITICAL).
         tail: Number of trailing lines per container.
-        since: Unix timestamp — only include logs after this time.
+        since: Unix timestamp - only include logs after this time.
 
     Returns:
         Dict with ``entries`` (list of log entry dicts) and ``total``.

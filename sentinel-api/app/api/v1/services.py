@@ -1,4 +1,4 @@
-"""Service management routes — container CRUD, lifecycle actions, and logs."""
+"""Service management routes - container CRUD, lifecycle actions, and logs."""
 from __future__ import annotations
 
 import asyncio
@@ -110,7 +110,7 @@ async def start_service(
 async def get_service_logs(
     name: str,
     tail: int = Query(default=100, ge=1, le=5000, description="Number of trailing log lines"),
-    since: int | None = Query(default=None, description="Unix timestamp — only return logs after this time"),
+    since: int | None = Query(default=None, description="Unix timestamp - only return logs after this time"),
     claims: dict = Depends(require_admin),
 ):
     """Retrieve container logs with optional tail count and time filter."""

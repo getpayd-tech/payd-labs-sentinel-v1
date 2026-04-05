@@ -188,7 +188,7 @@ export const useAuthStore = defineStore('auth', () => {
       const token = localStorage.getItem(TOKEN_KEY)
       if (!token || !isTokenExpired(token)) return
 
-      // Token expired — try refresh
+      // Token expired - try refresh
       const refreshToken = localStorage.getItem(REFRESH_KEY)
       if (refreshToken) {
         try {
@@ -203,7 +203,7 @@ export const useAuthStore = defineStore('auth', () => {
         } catch { /* refresh failed */ }
       }
 
-      // Refresh failed — logout
+      // Refresh failed - logout
       logout()
     }, 60_000)
   }

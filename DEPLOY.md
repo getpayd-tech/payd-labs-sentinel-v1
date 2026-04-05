@@ -1,6 +1,6 @@
 # Deploying with Sentinel
 
-This guide covers how to deploy any project to the Payd Labs server using Sentinel. No SSH keys needed — just one webhook secret per project.
+This guide covers how to deploy any project to the Payd Labs server using Sentinel. No SSH keys needed - just one webhook secret per project.
 
 Also available in-app at [sentinel.paydlabs.com/docs](https://sentinel.paydlabs.com/docs).
 
@@ -46,17 +46,17 @@ The wizard walks you through 6 steps:
 | **6. Review & Deploy** | Compose filename, first deploy toggle | Creates project dir, writes compose file, optionally pulls + starts containers |
 
 After provisioning, the wizard shows:
-- **Webhook secret** — copy this for Step 2
-- **Generated workflow** — copy this for Step 2
-- **Step-by-step results** — which steps succeeded/failed
+- **Webhook secret** - copy this for Step 2
+- **Generated workflow** - copy this for Step 2
+- **Step-by-step results** - which steps succeeded/failed
 
-> **Note:** "Pull & start containers" (steps 7-9) will fail for brand new projects because the GHCR images don't exist yet. This is normal — the images get created when CI/CD runs for the first time in Step 3.
+> **Note:** "Pull & start containers" (steps 7-9) will fail for brand new projects because the GHCR images don't exist yet. This is normal - the images get created when CI/CD runs for the first time in Step 3.
 
 ---
 
 ## Step 2: Add the CI/CD Workflow to Your Repo
 
-Create `.github/workflows/deploy.yml` in your project repo. The wizard generates this for you — just copy it.
+Create `.github/workflows/deploy.yml` in your project repo. The wizard generates this for you - just copy it.
 
 ### Single-container project (FastAPI, Vue, Nuxt, or Laravel)
 
@@ -107,7 +107,7 @@ jobs:
 
 **Replace** `MY-APP` with your project name (must match what you entered in the wizard).
 
-### Blended project (API + UI — two images)
+### Blended project (API + UI - two images)
 
 ```yaml
 name: Deploy
@@ -204,7 +204,7 @@ Push a commit to `main`. GitHub Actions will:
 3. Send the webhook to Sentinel
 4. Sentinel pulls the new image, recreates containers, and health-checks
 
-Track it in Sentinel at **Deployments** — you'll see the status, duration, logs, and who triggered it.
+Track it in Sentinel at **Deployments** - you'll see the status, duration, logs, and who triggered it.
 
 ---
 
@@ -212,15 +212,15 @@ Track it in Sentinel at **Deployments** — you'll see the status, duration, log
 
 When Sentinel receives the webhook POST:
 
-1. **Verifies HMAC-SHA256 signature** — rejects if the secret doesn't match
-2. **Looks up the project** by name — rejects if not registered
+1. **Verifies HMAC-SHA256 signature** - rejects if the secret doesn't match
+2. **Looks up the project** by name - rejects if not registered
 3. **Creates a deployment record** (status: `in_progress`)
 4. **Runs `docker compose pull`** in the project's `/apps/{name}/` directory
 5. **Runs `docker compose up -d`** to recreate containers with new images
-6. **Health check** — hits `https://{domain}{health_endpoint}` every 5 seconds for up to 60 seconds
+6. **Health check** - hits `https://{domain}{health_endpoint}` every 5 seconds for up to 60 seconds
 7. **If healthy** → deployment status set to `success`
 8. **If unhealthy** → automatic rollback (`docker compose up -d` with previous config), status set to `failed`
-9. **Records everything** — start time, end time, duration, full logs, who triggered it
+9. **Records everything** - start time, end time, duration, full logs, who triggered it
 
 ---
 
@@ -346,7 +346,7 @@ Go to your repo → Settings → Secrets → Actions → New repository secret:
 Find the deploy step in `.github/workflows/deploy.yml`. It currently looks like this:
 
 ```yaml
-# OLD — remove this
+# OLD - remove this
 - name: Deploy to server
   uses: appleboy/ssh-action@v1
   env:
@@ -368,7 +368,7 @@ Find the deploy step in `.github/workflows/deploy.yml`. It currently looks like 
 Replace it with:
 
 ```yaml
-# NEW — add this
+# NEW - add this
 - name: Deploy via Sentinel
   run: |
     PAYLOAD='{"project":"my-project","image_tag":"${{ github.sha }}","triggered_by":"${{ github.actor }}"}'
@@ -391,8 +391,8 @@ After verifying the webhook deploy works (push a commit, check Sentinel → Depl
 **6. Verify**
 
 - Push a commit to `main`
-- Watch GitHub Actions — the build step should succeed, then the webhook step
-- Check Sentinel → Deployments — a new entry should appear with status `success`
+- Watch GitHub Actions - the build step should succeed, then the webhook step
+- Check Sentinel → Deployments - a new entry should appear with status `success`
 - Visit the project's domain to confirm it's running
 
 ---

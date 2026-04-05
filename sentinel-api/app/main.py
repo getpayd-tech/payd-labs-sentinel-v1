@@ -1,4 +1,4 @@
-"""Sentinel API — Payd Labs server management platform.
+"""Sentinel API - Payd Labs server management platform.
 
 FastAPI application with lifespan management, structured logging, CORS,
 request logging middleware, and v1 API routers.
@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
         data_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Data directory ready: %s", data_dir)
     except OSError:
-        # Running locally — data dir may be relative
+        # Running locally - data dir may be relative
         local_data = Path("data")
         local_data.mkdir(parents=True, exist_ok=True)
         logger.info("Data directory ready: %s", local_data)
@@ -186,7 +186,7 @@ async def health_check():
             await session.execute(text("SELECT 1"))
         checks["database"] = "connected"
     except Exception as exc:
-        logger.error("Health check — database unreachable: %s", exc)
+        logger.error("Health check - database unreachable: %s", exc)
         checks["database"] = "unreachable"
 
     degraded = checks["database"] == "unreachable"

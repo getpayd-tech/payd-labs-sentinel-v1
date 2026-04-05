@@ -41,7 +41,7 @@ async function attemptTokenRefresh(): Promise<boolean> {
       return true
     }
   } catch {
-    // Refresh failed — token is truly expired
+    // Refresh failed - token is truly expired
   }
   return false
 }
@@ -71,7 +71,7 @@ api.interceptors.response.use(
         return api(originalRequest)
       }
 
-      // Refresh failed — clear everything and redirect to login
+      // Refresh failed - clear everything and redirect to login
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(REFRESH_KEY)
       if (window.location.pathname !== '/login') {

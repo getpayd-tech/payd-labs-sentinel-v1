@@ -77,7 +77,7 @@ async def _health_check(project: Project) -> bool:
     Returns True if the endpoint responds with a 2xx status within 30 seconds.
     """
     if not project.health_endpoint or not project.domain:
-        # No health endpoint configured — assume healthy
+        # No health endpoint configured - assume healthy
         return True
 
     url = f"https://{project.domain}{project.health_endpoint}"
@@ -155,7 +155,7 @@ async def trigger_deployment(
         all_logs.append("=== health check ===")
         healthy = await _health_check(project)
         if not healthy:
-            all_logs.append("Health check FAILED — initiating rollback")
+            all_logs.append("Health check FAILED - initiating rollback")
             raise RuntimeError("Health check failed after deployment")
 
         all_logs.append("Health check PASSED")

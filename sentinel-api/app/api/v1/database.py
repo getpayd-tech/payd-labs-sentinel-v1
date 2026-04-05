@@ -1,4 +1,4 @@
-"""Database browser routes — list databases, tables, schemas, run queries, create databases."""
+"""Database browser routes - list databases, tables, schemas, run queries, create databases."""
 from __future__ import annotations
 
 import logging

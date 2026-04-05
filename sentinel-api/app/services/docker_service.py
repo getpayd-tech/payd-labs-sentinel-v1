@@ -11,11 +11,11 @@ of *event-loop blocking* if called inline from an async handler.
 
 Solution
 --------
-* `_stats_cache` — module-level dict updated by `refresh_stats_cache()`.
-* `refresh_stats_cache()` — async function that fetches stats for ALL running
+* `_stats_cache` - module-level dict updated by `refresh_stats_cache()`.
+* `refresh_stats_cache()` - async function that fetches stats for ALL running
   containers *concurrently* (each in its own thread via asyncio.to_thread),
   completing in ~1s regardless of container count.
-* `list_containers()` — fast sync function: container metadata only, no stats
+* `list_containers()` - fast sync function: container metadata only, no stats
   calls. Merges with `_stats_cache` which is populated by the background job.
 * All routes call blocking Docker functions via `asyncio.to_thread()` to keep
   the event loop free.
@@ -33,7 +33,7 @@ from docker.errors import DockerException, NotFound, APIError
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# In-memory stats cache — updated every 30s by the background scheduler.
+# In-memory stats cache - updated every 30s by the background scheduler.
 # Key: container name  Value: stats dict (cpu_percent, memory_*, network_*)
 # ---------------------------------------------------------------------------
 _stats_cache: dict[str, dict[str, float]] = {}
@@ -115,7 +115,7 @@ def _get_health(container_attrs: dict) -> str | None:
 
 
 def _fetch_single_stats(container) -> tuple[str, dict[str, float]]:
-    """Fetch stats for one container (blocking — meant to run in a thread)."""
+    """Fetch stats for one container (blocking - meant to run in a thread)."""
     try:
         stats = container.stats(stream=False)
         cpu = _calculate_cpu_percent(stats)
@@ -184,7 +184,7 @@ async def refresh_stats_cache() -> None:
 def list_containers() -> list[dict[str, Any]]:
     """List all Docker containers with metadata + cached stats.
 
-    This function does NOT call container.stats() — it reads from the
+    This function does NOT call container.stats() - it reads from the
     module-level _stats_cache populated by refresh_stats_cache().
     As a result it completes in milliseconds.
 
@@ -232,7 +232,7 @@ def get_container(name: str) -> dict[str, Any]:
     """Get detailed information for a single container.
 
     Returns a dict matching the ContainerDetail schema fields.
-    Uses cached stats — does NOT call container.stats() inline.
+    Uses cached stats - does NOT call container.stats() inline.
     """
     client = _get_client()
     try:
@@ -397,7 +397,7 @@ def _parse_log_line(line: str) -> tuple[str, str]:
 def get_container_stats(name: str) -> dict[str, Any]:
     """Get stats for a container from the cache.
 
-    Returns cached values — does not make a live Docker stats call.
+    Returns cached values - does not make a live Docker stats call.
     For a live call use refresh_stats_cache() then read from cache.
     """
     cached = _stats_cache.get(name, {})

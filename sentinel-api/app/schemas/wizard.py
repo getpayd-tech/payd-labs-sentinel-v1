@@ -60,7 +60,7 @@ class TypeDefaults(BaseModel):
 
 
 class WizardDraft(BaseModel):
-    """Saved wizard draft — all form state for resuming later."""
+    """Saved wizard draft - all form state for resuming later."""
     id: Optional[str] = None
     name: str = ""
     display_name: str = ""

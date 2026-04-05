@@ -1,4 +1,4 @@
-"""Dashboard routes — aggregated stats and health overview."""
+"""Dashboard routes - aggregated stats and health overview."""
 from __future__ import annotations
 
 import asyncio
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 @router.get("/stats", response_model=DashboardStats)
 async def dashboard_stats(claims: dict = Depends(require_admin)):
     """Return aggregated dashboard statistics: system metrics and container info."""
-    # Both calls are blocking — run in threads to keep the event loop free
+    # Both calls are blocking - run in threads to keep the event loop free
     metrics, raw_containers = await asyncio.gather(
         asyncio.to_thread(get_system_metrics),
         asyncio.to_thread(list_containers),

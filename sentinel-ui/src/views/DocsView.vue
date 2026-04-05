@@ -189,8 +189,8 @@ CMD ["node", ".output/server/index.mjs"]`
         <div v-if="isOpen('overview')" class="px-5 pb-5 text-sm text-text-secondary space-y-3 border-t border-border pt-4">
           <p>Deploying a new project has two parts:</p>
           <ol class="list-decimal ml-5 space-y-1">
-            <li><strong class="text-text">Sentinel Deploy Wizard</strong> — provisions the server: creates the project directory, docker-compose file, .env file, Caddy domain route, and optionally a PostgreSQL database.</li>
-            <li><strong class="text-text">GitHub Actions CI/CD</strong> — builds Docker images, pushes them to GHCR, and deploys to the server via SSH on every push to <code class="bg-surface-tertiary px-1 rounded text-xs">main</code>.</li>
+            <li><strong class="text-text">Sentinel Deploy Wizard</strong> - provisions the server: creates the project directory, docker-compose file, .env file, Caddy domain route, and optionally a PostgreSQL database.</li>
+            <li><strong class="text-text">GitHub Actions CI/CD</strong> - builds Docker images, pushes them to GHCR, and deploys to the server via SSH on every push to <code class="bg-surface-tertiary px-1 rounded text-xs">main</code>.</li>
           </ol>
           <p>The wizard handles Step 1. You set up CI/CD once in Step 2, then every future push auto-deploys.</p>
         </div>
@@ -206,15 +206,15 @@ CMD ["node", ".output/server/index.mjs"]`
         <div v-if="isOpen('wizard')" class="px-5 pb-5 text-sm text-text-secondary space-y-3 border-t border-border pt-4">
           <p>Go to <router-link to="/projects/deploy-wizard" class="text-accent hover:underline">Projects &rarr; Deploy Wizard</router-link> and fill in:</p>
           <div class="space-y-2">
-            <div class="flex gap-2"><span class="font-mono text-xs bg-surface-tertiary px-1.5 py-0.5 rounded text-accent shrink-0">1</span><span><strong class="text-text">Project Type</strong> — FastAPI, Vue, Blended (API + UI), Nuxt, or Laravel</span></div>
-            <div class="flex gap-2"><span class="font-mono text-xs bg-surface-tertiary px-1.5 py-0.5 rounded text-accent shrink-0">2</span><span><strong class="text-text">Repository</strong> — GitHub repo URL or org/name. Name and GHCR image auto-derived.</span></div>
-            <div class="flex gap-2"><span class="font-mono text-xs bg-surface-tertiary px-1.5 py-0.5 rounded text-accent shrink-0">3</span><span><strong class="text-text">Domain & TLS</strong> — Domain name, TLS mode, optional custom Caddy routes.</span></div>
-            <div class="flex gap-2"><span class="font-mono text-xs bg-surface-tertiary px-1.5 py-0.5 rounded text-accent shrink-0">4</span><span><strong class="text-text">Database</strong> — Optionally create a PostgreSQL database on the managed cluster.</span></div>
-            <div class="flex gap-2"><span class="font-mono text-xs bg-surface-tertiary px-1.5 py-0.5 rounded text-accent shrink-0">5</span><span><strong class="text-text">Environment</strong> — Add variables one by one or bulk-paste an entire .env file.</span></div>
-            <div class="flex gap-2"><span class="font-mono text-xs bg-surface-tertiary px-1.5 py-0.5 rounded text-accent shrink-0">6</span><span><strong class="text-text">Review & Deploy</strong> — Preview generated files, select compose filename, provision.</span></div>
+            <div class="flex gap-2"><span class="font-mono text-xs bg-surface-tertiary px-1.5 py-0.5 rounded text-accent shrink-0">1</span><span><strong class="text-text">Project Type</strong> - FastAPI, Vue, Blended (API + UI), Nuxt, or Laravel</span></div>
+            <div class="flex gap-2"><span class="font-mono text-xs bg-surface-tertiary px-1.5 py-0.5 rounded text-accent shrink-0">2</span><span><strong class="text-text">Repository</strong> - GitHub repo URL or org/name. Name and GHCR image auto-derived.</span></div>
+            <div class="flex gap-2"><span class="font-mono text-xs bg-surface-tertiary px-1.5 py-0.5 rounded text-accent shrink-0">3</span><span><strong class="text-text">Domain & TLS</strong> - Domain name, TLS mode, optional custom Caddy routes.</span></div>
+            <div class="flex gap-2"><span class="font-mono text-xs bg-surface-tertiary px-1.5 py-0.5 rounded text-accent shrink-0">4</span><span><strong class="text-text">Database</strong> - Optionally create a PostgreSQL database on the managed cluster.</span></div>
+            <div class="flex gap-2"><span class="font-mono text-xs bg-surface-tertiary px-1.5 py-0.5 rounded text-accent shrink-0">5</span><span><strong class="text-text">Environment</strong> - Add variables one by one or bulk-paste an entire .env file.</span></div>
+            <div class="flex gap-2"><span class="font-mono text-xs bg-surface-tertiary px-1.5 py-0.5 rounded text-accent shrink-0">6</span><span><strong class="text-text">Review & Deploy</strong> - Preview generated files, select compose filename, provision.</span></div>
           </div>
           <div class="p-3 rounded-lg bg-surface-tertiary text-xs">
-            <strong class="text-text">Note:</strong> The "Pull & start containers" step will fail if GHCR images don't exist yet. This is normal for new projects — images are created in Step 2 when CI/CD runs for the first time.
+            <strong class="text-text">Note:</strong> The "Pull & start containers" step will fail if GHCR images don't exist yet. This is normal for new projects - images are created in Step 2 when CI/CD runs for the first time.
           </div>
         </div>
       </div>
@@ -231,7 +231,7 @@ CMD ["node", ".output/server/index.mjs"]`
 
           <div>
             <div class="flex items-center justify-between mb-2">
-              <h3 class="text-xs font-semibold text-text uppercase tracking-wide">Blended (API + UI) — Two Images</h3>
+              <h3 class="text-xs font-semibold text-text uppercase tracking-wide">Blended (API + UI) - Two Images</h3>
               <button class="p-1 rounded text-text-tertiary hover:text-accent transition-colors" @click="copy(blendedWorkflow, 'blended')">
                 <component :is="copied === 'blended' ? Check : Copy" class="w-3.5 h-3.5" />
               </button>
@@ -302,10 +302,10 @@ CMD ["node", ".output/server/index.mjs"]`
           <ol class="list-decimal ml-5 space-y-1 text-xs">
             <li>Build Docker image(s) and push to GHCR</li>
             <li>SSH into the server</li>
-            <li><code class="bg-surface-tertiary px-1 rounded">docker compose pull</code> — pull new images</li>
-            <li><code class="bg-surface-tertiary px-1 rounded">docker compose up -d</code> — start/recreate containers</li>
-            <li>Health check — verify the service responds</li>
-            <li>Image cleanup — remove old unused images</li>
+            <li><code class="bg-surface-tertiary px-1 rounded">docker compose pull</code> - pull new images</li>
+            <li><code class="bg-surface-tertiary px-1 rounded">docker compose up -d</code> - start/recreate containers</li>
+            <li>Health check - verify the service responds</li>
+            <li>Image cleanup - remove old unused images</li>
           </ol>
           <p class="text-xs">After the first deploy, visit your domain to verify. New containers will appear on the Sentinel Dashboard.</p>
         </div>

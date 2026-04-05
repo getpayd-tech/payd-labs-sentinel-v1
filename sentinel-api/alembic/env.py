@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from app.models import *  # noqa: F401, F403
 from app.database import Base
 
-# Alembic Config object — provides access to values in alembic.ini
+# Alembic Config object - provides access to values in alembic.ini
 config = context.config
 
 # Set up Python logging from the config file
@@ -79,7 +79,7 @@ async def run_async_migrations() -> None:
 
 
 def run_migrations_online() -> None:
-    """Entry point for online migrations — delegates to async runner."""
+    """Entry point for online migrations - delegates to async runner."""
     asyncio.run(run_async_migrations())
 
 

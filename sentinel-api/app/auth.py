@@ -1,4 +1,4 @@
-"""Payd Auth integration — admin verification dependency.
+"""Payd Auth integration - admin verification dependency.
 
 Decodes JWT claims from x-auth-token header and verifies admin status.
 Payd Auth (auth.payd.money) handles actual token validation; we only
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 async def require_admin(request: Request) -> dict:
     """Extract and verify admin JWT from x-auth-token header.
 
-    Decodes the JWT payload (base64, no cryptographic verification — Payd Auth
+    Decodes the JWT payload (base64, no cryptographic verification - Payd Auth
     handles that upstream). Checks the ``is_admin`` claim and returns the full
     claims dict so downstream handlers can access user_id, username, etc.
 
@@ -46,7 +46,7 @@ async def require_admin(request: Request) -> dict:
     if not claims.get("is_admin", False):
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    # Username whitelist — if configured, only listed usernames may log in
+    # Username whitelist - if configured, only listed usernames may log in
     from app.config import settings
     allowed = settings.allowed_username_list
     if allowed:

@@ -32,7 +32,7 @@ Your Repo (GitHub Actions)                 Sentinel (on server)
 1. **Run the wizard** at [sentinel.paydlabs.com/projects/deploy-wizard](https://sentinel.paydlabs.com/projects/deploy-wizard)
 2. **Add the workflow** to your repo (wizard generates it, just copy to `.github/workflows/deploy.yml`)
 3. **Add one secret** to your GitHub repo: `SENTINEL_WEBHOOK_SECRET` (shown after wizard completes)
-4. **Push to main** — Sentinel handles the rest
+4. **Push to main** - Sentinel handles the rest
 
 For the full step-by-step guide with examples, Dockerfile templates, and troubleshooting, see **[DEPLOY.md](./DEPLOY.md)**.
 

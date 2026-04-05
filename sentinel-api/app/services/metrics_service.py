@@ -42,7 +42,7 @@ def get_system_metrics() -> SystemMetrics:
     boot_time = psutil.boot_time()
     uptime_seconds = round(time.time() - boot_time, 1)
 
-    # Load average (1, 5, 15 minutes) — returns (0, 0, 0) on Windows
+    # Load average (1, 5, 15 minutes) - returns (0, 0, 0) on Windows
     try:
         load_avg = list(psutil.getloadavg())
     except (AttributeError, OSError):

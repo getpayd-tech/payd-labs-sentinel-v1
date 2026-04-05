@@ -1,4 +1,4 @@
-"""Audit log routes — paginated audit log with filters."""
+"""Audit log routes - paginated audit log with filters."""
 from __future__ import annotations
 
 import json
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/audit", tags=["Audit"])
 
 
 # ---------------------------------------------------------------------------
-# Response schemas — field names match frontend AuditEntry type
+# Response schemas - field names match frontend AuditEntry type
 # ---------------------------------------------------------------------------
 
 
@@ -53,8 +53,8 @@ async def get_audit_logs(
     action: Optional[str] = Query(None, description="Filter by action (e.g. 'deployment.trigger')"),
     target: Optional[str] = Query(None, description="Filter by target"),
     user_id: Optional[str] = Query(None, description="Filter by user ID"),
-    date_from: Optional[str] = Query(None, description="ISO date — only entries after this date"),
-    date_to: Optional[str] = Query(None, description="ISO date — only entries before this date"),
+    date_from: Optional[str] = Query(None, description="ISO date - only entries after this date"),
+    date_to: Optional[str] = Query(None, description="ISO date - only entries before this date"),
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),

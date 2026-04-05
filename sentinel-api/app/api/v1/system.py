@@ -1,4 +1,4 @@
-"""System metrics routes — current and historical metrics."""
+"""System metrics routes - current and historical metrics."""
 from __future__ import annotations
 
 import logging

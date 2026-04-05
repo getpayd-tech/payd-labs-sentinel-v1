@@ -1,4 +1,4 @@
-"""Deployment routes — list, trigger, rollback, and webhook receiver."""
+"""Deployment routes - list, trigger, rollback, and webhook receiver."""
 from __future__ import annotations
 
 import logging
@@ -185,7 +185,7 @@ async def receive_webhook(
 ):
     """Receive a GitHub / CI webhook and trigger a deployment.
 
-    This endpoint does NOT require admin auth — it uses HMAC-SHA256
+    This endpoint does NOT require admin auth - it uses HMAC-SHA256
     signature verification instead.
     """
     body_bytes = await request.body()

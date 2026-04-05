@@ -1,4 +1,4 @@
-"""Authentication routes — Payd Auth proxy.
+"""Authentication routes - Payd Auth proxy.
 
 Transparent proxy to https://auth.payd.money, matching the exact pattern
 used by Payd Stables admin. Returns raw upstream responses with tokens
@@ -137,7 +137,7 @@ async def me(x_auth_token: str = Header("")):
         raise HTTPException(status_code=401, detail="No token")
 
     try:
-        # Decode JWT claims (no verification — Payd Auth handles that)
+        # Decode JWT claims (no verification - Payd Auth handles that)
         parts = x_auth_token.split(".")
         payload = parts[1] + "=" * (4 - len(parts[1]) % 4)
         claims = json.loads(base64.b64decode(payload))

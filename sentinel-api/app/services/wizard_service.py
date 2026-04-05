@@ -153,7 +153,7 @@ async def _run_compose(compose_file: str, project_dir: str, command: list[str]) 
         output = stdout.decode("utf-8", errors="replace") if stdout else ""
         return proc.returncode or 0, output
     except FileNotFoundError:
-        # docker CLI not available — try docker-compose
+        # docker CLI not available - try docker-compose
         try:
             proc = await asyncio.create_subprocess_exec(
                 "docker-compose", "-f", compose_file, *command,
@@ -449,7 +449,7 @@ async def execute_wizard(
                 if healthy:
                     steps.append({"step": 9, "name": "Health check", "status": "complete", "message": f"https://{domain}{health_endpoint} is responding"})
                 else:
-                    steps.append({"step": 9, "name": "Health check", "status": "error", "message": f"Health check failed after 60s — containers may still be starting"})
+                    steps.append({"step": 9, "name": "Health check", "status": "error", "message": f"Health check failed after 60s - containers may still be starting"})
             except Exception as exc:
                 steps.append({"step": 9, "name": "Health check", "status": "error", "message": str(exc)})
         else:

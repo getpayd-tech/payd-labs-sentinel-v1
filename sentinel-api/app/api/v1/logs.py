@@ -1,4 +1,4 @@
-"""Aggregated log routes — fetch and filter logs across containers."""
+"""Aggregated log routes - fetch and filter logs across containers."""
 from __future__ import annotations
 
 import asyncio
@@ -25,7 +25,7 @@ async def get_logs(
     search: Optional[str] = Query(None, description="Filter by text (case-insensitive)"),
     level: Optional[str] = Query(None, description="Filter by log level (DEBUG, INFO, WARN, ERROR, CRITICAL)"),
     tail: int = Query(200, ge=1, le=5000, description="Number of trailing lines per container"),
-    since: Optional[int] = Query(None, description="Unix timestamp — only return logs after this time"),
+    since: Optional[int] = Query(None, description="Unix timestamp - only return logs after this time"),
     claims: dict = Depends(require_admin),
 ):
     """Fetch aggregated logs from one or more containers."""

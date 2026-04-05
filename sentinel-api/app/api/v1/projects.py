@@ -1,4 +1,4 @@
-"""Project management routes — CRUD, provisioning, env vars, templates, scanning, wizard."""
+"""Project management routes - CRUD, provisioning, env vars, templates, scanning, wizard."""
 from __future__ import annotations
 
 import logging
@@ -111,7 +111,7 @@ async def wizard_execute(
     db: AsyncSession = Depends(get_db),
     claims: dict = Depends(require_admin),
 ):
-    """Execute the full deploy wizard — provision project, files, Caddy, and optionally database."""
+    """Execute the full deploy wizard - provision project, files, Caddy, and optionally database."""
     custom_routes = [{"path": r.path, "upstream": r.upstream} for r in body.caddy_routes] if body.caddy_routes else None
     result = await execute_wizard(
         db=db,

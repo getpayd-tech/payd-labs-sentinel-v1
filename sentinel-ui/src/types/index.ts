@@ -149,7 +149,9 @@ export interface MetricsHistoryPoint {
 
 export type DeploymentStatus =
   | 'pending'
+  | 'in_progress'
   | 'pulling'
+  | 'success'
   | 'healthy'
   | 'failed'
   | 'rolled_back'

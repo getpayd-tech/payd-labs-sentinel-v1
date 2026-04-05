@@ -82,7 +82,9 @@ const rollbackMutation = useMutation({
 function getStatusVariant(status: DeploymentStatus): 'success' | 'warning' | 'error' | 'info' | 'neutral' {
   const map: Record<DeploymentStatus, 'success' | 'warning' | 'error' | 'info' | 'neutral'> = {
     pending: 'neutral',
+    in_progress: 'info',
     pulling: 'info',
+    success: 'success',
     healthy: 'success',
     failed: 'error',
     rolled_back: 'warning',
@@ -131,7 +133,7 @@ function openDeployModal() {
       </div>
       <select
         v-model="selectedProject"
-        class="h-9 px-3 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+        class="h-9 px-3 text-sm rounded-lg border border-border bg-surface text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
       >
         <option value="">All Projects</option>
         <option v-for="project in projects" :key="project.id" :value="project.id">
@@ -225,9 +227,17 @@ function openDeployModal() {
               <td class="px-4 py-3">
                 <div class="flex items-center justify-end gap-1">
                   <button
-                    v-if="deploy.status === 'failed'"
+                    class="p-1.5 rounded-md text-gray-400 hover:text-accent hover:bg-accent/10 transition-colors"
+                    title="Redeploy"
+                    :disabled="deployMutation.isPending.value"
+                    @click="deployProjectId = deploy.project_id; deployMutation.mutate()"
+                  >
+                    <Play class="w-4 h-4" />
+                  </button>
+                  <button
+                    v-if="deploy.status === 'failed' || deploy.status === 'success'"
                     class="p-1.5 rounded-md text-gray-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
-                    title="Rollback"
+                    title="Rollback to this version"
                     :disabled="rollbackMutation.isPending.value"
                     @click="rollbackMutation.mutate({ projectId: deploy.project_id, deploymentId: deploy.id })"
                   >
@@ -256,10 +266,10 @@ function openDeployModal() {
     <Modal v-model="showDeployModal" title="Manual Deploy" size="md">
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-kPrimary dark:text-gray-300 mb-1.5">Project</label>
+          <label class="block text-sm font-medium text-text mb-1.5">Project</label>
           <select
             v-model="deployProjectId"
-            class="w-full h-10 px-3.5 text-sm rounded-lg border border-kPrimary/15 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+            class="w-full h-10 px-3.5 text-sm rounded-lg border border-border bg-surface text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
           >
             <option value="" disabled>Select a project</option>
             <option v-for="project in projects" :key="project.id" :value="project.id">

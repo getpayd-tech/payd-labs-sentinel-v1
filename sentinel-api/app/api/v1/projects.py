@@ -211,6 +211,7 @@ async def create_new_project(
 ):
     """Create a new project."""
     project = await create_project(db, body.model_dump())
+    response = _project_to_response(project)
 
     await log_action(
         db,
@@ -221,7 +222,7 @@ async def create_new_project(
         ip_address=request.client.host if request and request.client else None,
     )
 
-    return _project_to_response(project)
+    return response
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
@@ -251,6 +252,9 @@ async def update_existing_project(
         raise HTTPException(status_code=404, detail="Project not found")
 
     updated = await update_project(db, project, body.model_dump(exclude_unset=True))
+    # Build the response BEFORE the audit log flush so we don't read expired
+    # attributes (which would trigger an async lazy-load and crash).
+    response = _project_to_response(updated)
 
     await log_action(
         db,
@@ -261,7 +265,7 @@ async def update_existing_project(
         ip_address=request.client.host if request and request.client else None,
     )
 
-    return _project_to_response(updated)
+    return response
 
 
 @router.delete("/{project_id}")

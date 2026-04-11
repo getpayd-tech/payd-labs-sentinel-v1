@@ -36,8 +36,8 @@ const { data: deployments, isLoading, isError, refetch } = useQuery({
   queryFn: () =>
     deploymentsService.list(
       selectedProject.value
-        ? { project_id: selectedProject.value, per_page: 50 }
-        : { per_page: 50 }
+        ? { project_id: selectedProject.value, page_size: 50 }
+        : { page_size: 50 }
     ),
   refetchInterval: 10000,
 })

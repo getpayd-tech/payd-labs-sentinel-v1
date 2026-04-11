@@ -5,7 +5,7 @@ export const deploymentsService = {
   async list(params?: {
     project_id?: string
     page?: number
-    per_page?: number
+    page_size?: number
   }): Promise<DeploymentList> {
     const { data } = await api.get<DeploymentList>('/deployments', { params })
     return data

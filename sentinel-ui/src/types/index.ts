@@ -175,7 +175,7 @@ export interface DeploymentList {
   items: DeploymentInfo[]
   total: number
   page: number
-  per_page: number
+  page_size: number
 }
 
 export interface DeployRequest {

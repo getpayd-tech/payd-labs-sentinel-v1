@@ -22,6 +22,7 @@ class Project(Base):
     ghcr_image: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     domain: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     compose_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    compose_file: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     container_names: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     health_endpoint: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, default="/health")
     webhook_secret: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)

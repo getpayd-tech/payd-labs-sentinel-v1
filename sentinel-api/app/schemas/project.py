@@ -16,6 +16,7 @@ class ProjectCreate(BaseModel):
     ghcr_image: Optional[str] = None
     domain: Optional[str] = None
     compose_path: Optional[str] = None
+    compose_file: Optional[str] = None
     health_endpoint: Optional[str] = "/health"
     database_name: Optional[str] = None
     container_names: Optional[dict] = None
@@ -30,6 +31,7 @@ class ProjectUpdate(BaseModel):
     ghcr_image: Optional[str] = None
     domain: Optional[str] = None
     compose_path: Optional[str] = None
+    compose_file: Optional[str] = None
     health_endpoint: Optional[str] = None
     database_name: Optional[str] = None
     container_names: Optional[dict] = None
@@ -47,6 +49,7 @@ class ProjectResponse(BaseModel):
     ghcr_image: Optional[str] = None
     domain: Optional[str] = None
     compose_path: Optional[str] = None
+    compose_file: Optional[str] = None
     container_names: Optional[dict] = None
     health_endpoint: Optional[str] = None
     webhook_secret: Optional[str] = None

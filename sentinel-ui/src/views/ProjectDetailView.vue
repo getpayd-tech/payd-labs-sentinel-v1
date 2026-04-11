@@ -39,6 +39,7 @@ const editForm = ref({
   ghcr_image: '',
   database_name: '',
   compose_path: '',
+  compose_file: '',
 })
 
 const editContainers = ref<ContainerRow[]>([])
@@ -146,6 +147,7 @@ function openEditModal() {
     ghcr_image: p.ghcr_image || '',
     database_name: p.database_name || '',
     compose_path: p.compose_path || '',
+    compose_file: p.compose_file || '',
   }
   editContainers.value = Object.entries(p.container_names || {}).map(
     ([name, container]) => ({ name, container: String(container) }),
@@ -336,6 +338,7 @@ function confirmDelete() {
         <Input v-model="editForm.domain" label="Domain" placeholder="example.paydlabs.com" />
         <Input v-model="editForm.health_endpoint" label="Health Endpoint" placeholder="/health" />
         <Input v-model="editForm.compose_path" label="Compose Path" placeholder="/apps/<service>" />
+        <Input v-model="editForm.compose_file" label="Compose File" placeholder="docker-compose.yml (leave blank for default)" />
         <Input v-model="editForm.database_name" label="Database Name" placeholder="postgres db name (optional)" />
 
         <div>

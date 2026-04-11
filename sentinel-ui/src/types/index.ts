@@ -202,6 +202,7 @@ export interface ProjectInfo {
   github_repo: string | null
   ghcr_image: string | null
   compose_path?: string | null
+  compose_file?: string | null
   database_name?: string | null
   webhook_secret?: string | null
   health_endpoint: string | null
@@ -218,6 +219,7 @@ export interface ProjectCreate {
   github_repo?: string
   ghcr_image?: string
   compose_path?: string
+  compose_file?: string
   database_name?: string
   container_names?: Record<string, string>
   health_endpoint?: string
@@ -236,6 +238,7 @@ export interface ProjectUpdate {
   github_repo?: string
   ghcr_image?: string
   compose_path?: string
+  compose_file?: string
   database_name?: string
   container_names?: Record<string, string>
   health_endpoint?: string

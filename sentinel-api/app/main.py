@@ -75,6 +75,7 @@ async def lifespan(app: FastAPI):
     # create_all() only creates missing tables, it does not add missing columns.
     async with engine.begin() as conn:
         await _ensure_column(conn, "projects", "description", "TEXT")
+        await _ensure_column(conn, "projects", "compose_file", "VARCHAR(200)")
 
     # Start background scheduler
     start_scheduler()

@@ -157,6 +157,9 @@ async def trigger_deployment(
     await db.flush()
 
     compose_dir = project.compose_path or f"/apps/{project.name}"
+    compose_prefix = ["docker", "compose"]
+    if project.compose_file:
+        compose_prefix += ["-f", project.compose_file]
     all_logs: list[str] = []
 
     try:
@@ -165,14 +168,14 @@ async def trigger_deployment(
 
         # Pull
         all_logs.append("=== docker compose pull ===")
-        rc, output = await _run_command(["docker", "compose", "pull"], cwd=compose_dir)
+        rc, output = await _run_command(compose_prefix + ["pull"], cwd=compose_dir)
         all_logs.append(output)
         if rc != 0:
             raise RuntimeError(f"docker compose pull failed (rc={rc})")
 
         # Up
         all_logs.append("=== docker compose up -d ===")
-        rc, output = await _run_command(["docker", "compose", "up", "-d"], cwd=compose_dir)
+        rc, output = await _run_command(compose_prefix + ["up", "-d"], cwd=compose_dir)
         all_logs.append(output)
         if rc != 0:
             raise RuntimeError(f"docker compose up -d failed (rc={rc})")
@@ -194,7 +197,7 @@ async def trigger_deployment(
         # Attempt rollback
         try:
             all_logs.append("=== rollback: docker compose up -d (previous) ===")
-            rc, output = await _run_command(["docker", "compose", "up", "-d"], cwd=compose_dir)
+            rc, output = await _run_command(compose_prefix + ["up", "-d"], cwd=compose_dir)
             all_logs.append(output)
         except Exception as rb_exc:
             all_logs.append(f"Rollback also failed: {rb_exc}")
@@ -234,17 +237,20 @@ async def rollback_deployment(
     await db.flush()
 
     compose_dir = project.compose_path or f"/apps/{project.name}"
+    compose_prefix = ["docker", "compose"]
+    if project.compose_file:
+        compose_prefix += ["-f", project.compose_file]
     all_logs: list[str] = [f"Rolling back to deployment {target_deployment.id} (tag: {target_deployment.image_tag})"]
 
     try:
         await _ghcr_login(all_logs)
 
         all_logs.append("=== docker compose pull ===")
-        rc, output = await _run_command(["docker", "compose", "pull"], cwd=compose_dir)
+        rc, output = await _run_command(compose_prefix + ["pull"], cwd=compose_dir)
         all_logs.append(output)
 
         all_logs.append("=== docker compose up -d ===")
-        rc, output = await _run_command(["docker", "compose", "up", "-d"], cwd=compose_dir)
+        rc, output = await _run_command(compose_prefix + ["up", "-d"], cwd=compose_dir)
         all_logs.append(output)
         if rc != 0:
             raise RuntimeError(f"docker compose up -d failed during rollback (rc={rc})")

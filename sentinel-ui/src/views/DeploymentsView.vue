@@ -193,7 +193,7 @@ function openDeployModal() {
                 </div>
               </td>
               <td class="px-4 py-3 hidden md:table-cell">
-                <Badge variant="neutral" size="sm">{{ deploy.trigger_type }}</Badge>
+                <Badge variant="neutral" size="sm">{{ deploy.trigger }}</Badge>
               </td>
               <td class="px-4 py-3 hidden lg:table-cell">
                 <div class="flex items-center gap-1.5 text-sm text-text-secondary">
@@ -221,7 +221,7 @@ function openDeployModal() {
               </td>
               <td class="px-4 py-3">
                 <span class="text-sm text-text-secondary">
-                  {{ relativeTime(deploy.started_at) }}
+                  {{ deploy.started_at ? relativeTime(deploy.started_at) : '-' }}
                 </span>
               </td>
               <td class="px-4 py-3">

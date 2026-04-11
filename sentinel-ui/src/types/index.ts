@@ -160,15 +160,15 @@ export interface DeploymentInfo {
   id: string
   project_id: string
   project_name: string
-  trigger_type: 'manual' | 'webhook' | 'api' | 'schedule'
-  image_tag: string
+  trigger: 'manual' | 'webhook' | 'rollback'
+  image_tag: string | null
+  previous_image_tag: string | null
   status: DeploymentStatus
   duration_seconds: number | null
-  triggered_by: string
-  started_at: string
-  finished_at: string | null
-  error_message: string | null
-  rollback_of: string | null
+  triggered_by: string | null
+  started_at: string | null
+  completed_at: string | null
+  logs: string | null
 }
 
 export interface DeploymentList {
@@ -190,12 +190,20 @@ export interface ProjectInfo {
   id: string
   name: string
   display_name: string
+  description?: string | null
+  // Normalized alias maintained by normalizeProject() for legacy call sites.
   type: ProjectType
+  project_type?: ProjectType
   domain: string | null
   status: string
+  // Derived from container_names when the backend omits it.
   container_count: number
+  container_names?: Record<string, string> | null
   github_repo: string | null
   ghcr_image: string | null
+  compose_path?: string | null
+  database_name?: string | null
+  webhook_secret?: string | null
   health_endpoint: string | null
   created_at: string
   updated_at: string
@@ -204,10 +212,14 @@ export interface ProjectInfo {
 export interface ProjectCreate {
   name: string
   display_name: string
+  description?: string
   type: ProjectType
   domain?: string
   github_repo?: string
   ghcr_image?: string
+  compose_path?: string
+  database_name?: string
+  container_names?: Record<string, string>
   health_endpoint?: string
   env_vars?: Record<string, string>
   database?: {
@@ -218,9 +230,14 @@ export interface ProjectCreate {
 
 export interface ProjectUpdate {
   display_name?: string
+  description?: string
+  project_type?: ProjectType
   domain?: string
   github_repo?: string
   ghcr_image?: string
+  compose_path?: string
+  database_name?: string
+  container_names?: Record<string, string>
   health_endpoint?: string
 }
 

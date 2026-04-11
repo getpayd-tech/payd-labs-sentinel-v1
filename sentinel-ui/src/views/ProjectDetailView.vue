@@ -27,12 +27,31 @@ const envVars = ref<{ key: string; value: string }[]>([])
 const savingEnv = ref(false)
 const showEditModal = ref(false)
 
+type ContainerRow = { name: string; container: string }
+
 const editForm = ref({
   display_name: '',
+  description: '',
+  project_type: 'custom' as string,
   github_repo: '',
   domain: '',
   health_endpoint: '',
+  ghcr_image: '',
+  database_name: '',
+  compose_path: '',
 })
+
+const editContainers = ref<ContainerRow[]>([])
+
+function addEditContainer() {
+  editContainers.value.push({ name: '', container: '' })
+}
+
+function removeEditContainer(i: number) {
+  editContainers.value.splice(i, 1)
+}
+
+const PROJECT_TYPES = ['fastapi', 'vue', 'blended', 'nuxt', 'laravel', 'static', 'custom'] as const
 
 const { data: project, isLoading, isError } = useQuery({
   queryKey: ['project', projectId],
@@ -116,21 +135,39 @@ async function saveEnvVars() {
 
 function openEditModal() {
   if (!project.value) return
+  const p: any = project.value
   editForm.value = {
-    display_name: project.value.display_name || '',
-    github_repo: project.value.github_repo || '',
-    domain: project.value.domain || '',
-    health_endpoint: project.value.health_endpoint || '/health',
+    display_name: p.display_name || '',
+    description: p.description || '',
+    project_type: p.project_type || p.type || 'custom',
+    github_repo: p.github_repo || '',
+    domain: p.domain || '',
+    health_endpoint: p.health_endpoint || '/health',
+    ghcr_image: p.ghcr_image || '',
+    database_name: p.database_name || '',
+    compose_path: p.compose_path || '',
   }
+  editContainers.value = Object.entries(p.container_names || {}).map(
+    ([name, container]) => ({ name, container: String(container) }),
+  )
   showEditModal.value = true
 }
 
 async function saveProject() {
   try {
-    await projectsService.update(projectId, editForm.value as any)
+    const container_names: Record<string, string> = {}
+    for (const row of editContainers.value) {
+      const key = row.name.trim()
+      if (key) container_names[key] = (row.container || key).trim() || key
+    }
+    const payload: Record<string, any> = { ...editForm.value }
+    payload.container_names = container_names
+    // Empty string description/compose_path should still be sent; backend skips nulls only.
+    await projectsService.update(projectId, payload)
     toast.success('Project updated')
     showEditModal.value = false
     queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+    queryClient.invalidateQueries({ queryKey: ['projects-list'] })
   } catch (e: any) {
     toast.error(e.response?.data?.detail || 'Failed to update project')
   }
@@ -271,11 +308,63 @@ function confirmDelete() {
 
     <!-- Edit Modal -->
     <Modal v-model="showEditModal" title="Edit Project" size="lg">
-      <div class="space-y-4">
+      <div class="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
         <Input v-model="editForm.display_name" label="Display Name" />
-        <Input v-model="editForm.github_repo" label="GitHub Repository" />
-        <Input v-model="editForm.domain" label="Domain" />
-        <Input v-model="editForm.health_endpoint" label="Health Endpoint" />
+
+        <div>
+          <label class="block text-xs font-medium text-text-secondary mb-1.5">Description</label>
+          <textarea
+            v-model="editForm.description"
+            rows="2"
+            placeholder="Short human-readable summary of the service"
+            class="w-full px-3 py-2 text-sm rounded-lg border border-border bg-surface text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-text-secondary mb-1.5">Project Type</label>
+          <select
+            v-model="editForm.project_type"
+            class="w-full h-10 px-3 text-sm rounded-lg border border-border bg-surface text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+          >
+            <option v-for="t in PROJECT_TYPES" :key="t" :value="t">{{ t }}</option>
+          </select>
+        </div>
+
+        <Input v-model="editForm.github_repo" label="GitHub Repository" placeholder="https://github.com/getpayd-tech/..." />
+        <Input v-model="editForm.ghcr_image" label="GHCR Image" placeholder="ghcr.io/getpayd-tech/..." />
+        <Input v-model="editForm.domain" label="Domain" placeholder="example.paydlabs.com" />
+        <Input v-model="editForm.health_endpoint" label="Health Endpoint" placeholder="/health" />
+        <Input v-model="editForm.compose_path" label="Compose Path" placeholder="/apps/<service>" />
+        <Input v-model="editForm.database_name" label="Database Name" placeholder="postgres db name (optional)" />
+
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="text-xs font-medium text-text-secondary">Containers</label>
+            <Button variant="outline" size="xs" @click="addEditContainer"><Plus class="w-3 h-3" /> Add</Button>
+          </div>
+          <p class="text-xs text-text-tertiary mb-2">Logical name -> docker container name. For single-container projects use the same value in both.</p>
+          <div class="space-y-2">
+            <div v-for="(c, i) in editContainers" :key="i" class="flex items-center gap-2">
+              <input
+                v-model="c.name"
+                type="text"
+                placeholder="logical-name"
+                class="w-40 h-9 px-3 text-xs font-mono rounded-lg border border-border bg-surface text-text focus:outline-none focus:ring-2 focus:ring-accent/20"
+              />
+              <input
+                v-model="c.container"
+                type="text"
+                placeholder="docker container name"
+                class="flex-1 h-9 px-3 text-xs font-mono rounded-lg border border-border bg-surface text-text focus:outline-none focus:ring-2 focus:ring-accent/20"
+              />
+              <button class="p-1.5 rounded-md text-text-tertiary hover:text-red-500 transition-colors" @click="removeEditContainer(i)">
+                <Trash2 class="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div v-if="editContainers.length === 0" class="text-xs text-text-tertiary italic">No containers yet.</div>
+          </div>
+        </div>
       </div>
       <template #footer>
         <div class="flex justify-end gap-2">

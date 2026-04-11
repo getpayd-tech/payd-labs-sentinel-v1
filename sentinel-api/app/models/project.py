@@ -16,6 +16,7 @@ class Project(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     project_type: Mapped[str] = mapped_column(String(20), nullable=False, default="fastapi")
     github_repo: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     ghcr_image: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)

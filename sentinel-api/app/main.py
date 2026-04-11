@@ -37,6 +37,16 @@ logging.getLogger("docker").setLevel(logging.WARNING)
 logger = logging.getLogger("sentinel")
 
 
+async def _ensure_column(conn, table: str, column: str, type_sql: str) -> None:
+    """Add a nullable column to a SQLite table if it doesn't already exist."""
+    result = await conn.execute(text(f"PRAGMA table_info({table})"))
+    existing = {row[1] for row in result.fetchall()}
+    if column in existing:
+        return
+    await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {type_sql}"))
+    logger.info("Added column %s.%s (%s)", table, column, type_sql)
+
+
 # ---------------------------------------------------------------------------
 # Application lifespan
 # ---------------------------------------------------------------------------
@@ -60,6 +70,11 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables verified")
+
+    # Idempotent column adds for tables created on an older schema.
+    # create_all() only creates missing tables, it does not add missing columns.
+    async with engine.begin() as conn:
+        await _ensure_column(conn, "projects", "description", "TEXT")
 
     # Start background scheduler
     start_scheduler()

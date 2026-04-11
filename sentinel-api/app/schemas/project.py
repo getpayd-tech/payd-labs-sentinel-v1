@@ -10,10 +10,12 @@ class ProjectCreate(BaseModel):
     """Request body for creating a new project."""
     name: str = Field(..., min_length=1, max_length=100, pattern=r"^[a-z0-9][a-z0-9\-]*$")
     display_name: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = None
     project_type: str = Field("fastapi", description="fastapi, nextjs, static, custom")
     github_repo: Optional[str] = None
     ghcr_image: Optional[str] = None
     domain: Optional[str] = None
+    compose_path: Optional[str] = None
     health_endpoint: Optional[str] = "/health"
     database_name: Optional[str] = None
     container_names: Optional[dict] = None
@@ -22,10 +24,12 @@ class ProjectCreate(BaseModel):
 class ProjectUpdate(BaseModel):
     """Request body for updating an existing project."""
     display_name: Optional[str] = None
+    description: Optional[str] = None
     project_type: Optional[str] = None
     github_repo: Optional[str] = None
     ghcr_image: Optional[str] = None
     domain: Optional[str] = None
+    compose_path: Optional[str] = None
     health_endpoint: Optional[str] = None
     database_name: Optional[str] = None
     container_names: Optional[dict] = None
@@ -37,6 +41,7 @@ class ProjectResponse(BaseModel):
     id: str
     name: str
     display_name: str
+    description: Optional[str] = None
     project_type: str
     github_repo: Optional[str] = None
     ghcr_image: Optional[str] = None

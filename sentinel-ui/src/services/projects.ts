@@ -26,9 +26,9 @@ export const projectsService = {
     return items.map(normalizeProject)
   },
 
-  async get(id: string): Promise<any> {
+  async get(id: string): Promise<ProjectInfo> {
     const { data } = await api.get(`/projects/${id}`)
-    return data
+    return normalizeProject(data)
   },
 
   async create(payload: ProjectCreate): Promise<ProjectInfo> {

@@ -160,6 +160,11 @@ async def update_project(db: AsyncSession, project: Project, data: dict[str, Any
         if value is not None and hasattr(project, key):
             setattr(project, key, value)
     await db.flush()
+    # updated_at uses onupdate=func.now() and is expired by SQLAlchemy after
+    # flush so it can be re-fetched. Explicitly reload it via the async path
+    # so the synchronous response builder doesn't trigger a sync lazy load
+    # (which fails with MissingGreenlet).
+    await db.refresh(project, ["updated_at"])
     return project
 
 

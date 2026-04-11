@@ -14,10 +14,14 @@ from app.schemas.domain import (
     DomainCreate,
     DomainInfo,
     DomainUpdate,
+    OnDemandTlsStatus,
 )
 from app.services.audit_service import log_action
 from app.services.caddy_service import (
     add_domain,
+    disable_on_demand_tls,
+    enable_on_demand_tls,
+    has_on_demand_tls,
     parse_caddyfile,
     reload_caddy,
     remove_domain,
@@ -69,6 +73,75 @@ async def create_domain(
             return DomainInfo(**block)
 
     return DomainInfo(domain=body.domain, upstreams=[], tls_enabled=True, tls_auto=body.tls_auto)
+
+
+# ---------------------------------------------------------------------------
+# On-demand TLS (must be registered before /{domain} to avoid path collision)
+# ---------------------------------------------------------------------------
+
+@router.get("/on-demand-tls", response_model=OnDemandTlsStatus)
+async def get_on_demand_tls_status(claims: dict = Depends(require_admin)):
+    """Check whether on-demand TLS is currently configured."""
+    enabled = await asyncio.to_thread(has_on_demand_tls)
+    return OnDemandTlsStatus(enabled=enabled)
+
+
+@router.post("/on-demand-tls/enable", response_model=OnDemandTlsStatus)
+async def enable_on_demand_tls_route(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    claims: dict = Depends(require_admin),
+):
+    """Enable on-demand TLS for OneLink custom domains."""
+    try:
+        await enable_on_demand_tls()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    result = await reload_caddy()
+
+    await log_action(
+        db,
+        user_id=claims.get("sub"),
+        action="caddy.on_demand_tls.enable",
+        target="caddy-proxy",
+        details=result,
+        ip_address=request.client.host if request and request.client else None,
+    )
+
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result["message"])
+
+    return OnDemandTlsStatus(enabled=True, message="On-demand TLS enabled and Caddy reloaded")
+
+
+@router.post("/on-demand-tls/disable", response_model=OnDemandTlsStatus)
+async def disable_on_demand_tls_route(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    claims: dict = Depends(require_admin),
+):
+    """Disable on-demand TLS for OneLink custom domains."""
+    try:
+        await disable_on_demand_tls()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    result = await reload_caddy()
+
+    await log_action(
+        db,
+        user_id=claims.get("sub"),
+        action="caddy.on_demand_tls.disable",
+        target="caddy-proxy",
+        details=result,
+        ip_address=request.client.host if request and request.client else None,
+    )
+
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result["message"])
+
+    return OnDemandTlsStatus(enabled=False, message="On-demand TLS disabled and Caddy reloaded")
 
 
 @router.put("/{domain}", response_model=DomainInfo)

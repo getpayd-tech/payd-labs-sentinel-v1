@@ -15,6 +15,23 @@ logger = logging.getLogger(__name__)
 
 CADDYFILE_PATH = Path("/apps/caddy/Caddyfile")
 
+# Infrastructure block identifiers (not user-managed domains)
+_INFRASTRUCTURE_DOMAINS = {"", "https://"}
+
+# NOTE: These are regular strings, NOT f-strings. {host} is a Caddy placeholder.
+GLOBAL_CONFIG_BLOCK = """{
+    on_demand_tls {
+        ask http://payd-labs-one-link:8000/internal/domain-check?domain={host}
+    }
+}"""
+
+CATCHALL_BLOCK = """https:// {
+    tls {
+        on_demand
+    }
+    reverse_proxy payd-labs-one-link:8000
+}"""
+
 
 # ---------------------------------------------------------------------------
 # TLS mode detection
@@ -34,8 +51,8 @@ def _detect_tls_mode(raw_block: str) -> str:
 # Parsing
 # ---------------------------------------------------------------------------
 
-def parse_caddyfile() -> list[dict[str, Any]]:
-    """Parse the Caddyfile into a list of domain block dicts."""
+def _parse_caddyfile_raw() -> list[dict[str, Any]]:
+    """Parse the Caddyfile into ALL blocks including infrastructure ones."""
     if not CADDYFILE_PATH.exists():
         logger.warning("Caddyfile not found at %s", CADDYFILE_PATH)
         return []
@@ -96,6 +113,56 @@ def parse_caddyfile() -> list[dict[str, Any]]:
                 brace_depth = 0
 
     return blocks
+
+
+def parse_caddyfile() -> list[dict[str, Any]]:
+    """Parse the Caddyfile into user-managed domain blocks only."""
+    return [
+        b for b in _parse_caddyfile_raw()
+        if b["domain"] not in _INFRASTRUCTURE_DOMAINS
+    ]
+
+
+# ---------------------------------------------------------------------------
+# On-demand TLS helpers
+# ---------------------------------------------------------------------------
+
+def has_on_demand_tls() -> bool:
+    """Check whether on-demand TLS is currently configured."""
+    domains = {b["domain"] for b in _parse_caddyfile_raw()}
+    return "" in domains and "https://" in domains
+
+
+async def enable_on_demand_tls() -> None:
+    """Add global config + catch-all blocks to enable on-demand TLS."""
+    if has_on_demand_tls():
+        raise ValueError("On-demand TLS is already enabled")
+
+    existing = ""
+    if CADDYFILE_PATH.exists():
+        existing = CADDYFILE_PATH.read_text().strip()
+
+    CADDYFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    content = GLOBAL_CONFIG_BLOCK + "\n\n" + existing + "\n\n" + CATCHALL_BLOCK + "\n"
+    CADDYFILE_PATH.write_text(content)
+    logger.info("Enabled on-demand TLS for OneLink custom domains")
+
+
+async def disable_on_demand_tls() -> None:
+    """Remove global config + catch-all blocks to disable on-demand TLS."""
+    if not has_on_demand_tls():
+        raise ValueError("On-demand TLS is not currently enabled")
+
+    content = CADDYFILE_PATH.read_text()
+    raw_blocks = _parse_caddyfile_raw()
+
+    for block in raw_blocks:
+        if block["domain"] in _INFRASTRUCTURE_DOMAINS:
+            content = content.replace(block["raw_config"], "")
+
+    content = re.sub(r"\n{3,}", "\n\n", content).strip() + "\n"
+    CADDYFILE_PATH.write_text(content)
+    logger.info("Disabled on-demand TLS")
 
 
 # ---------------------------------------------------------------------------
@@ -162,8 +229,18 @@ async def add_domain(
 
     CADDYFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(CADDYFILE_PATH, "a") as f:
-        f.write(f"\n\n{block_text}\n")
+    if has_on_demand_tls():
+        # Insert before the catch-all block so explicit domains take priority
+        content = CADDYFILE_PATH.read_text()
+        raw_blocks = _parse_caddyfile_raw()
+        catchall_raw = next(
+            b["raw_config"] for b in raw_blocks if b["domain"] == "https://"
+        )
+        content = content.replace(catchall_raw, f"{block_text}\n\n{catchall_raw}")
+        CADDYFILE_PATH.write_text(content)
+    else:
+        with open(CADDYFILE_PATH, "a") as f:
+            f.write(f"\n\n{block_text}\n")
 
     logger.info("Added Caddy domain block for %s (tls=%s)", domain, tls_mode)
 

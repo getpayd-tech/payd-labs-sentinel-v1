@@ -53,3 +53,9 @@ class CaddyReloadResponse(BaseModel):
     """Result of a Caddy reload operation."""
     success: bool
     message: str = ""
+
+
+class OnDemandTlsStatus(BaseModel):
+    """Status of on-demand TLS configuration."""
+    enabled: bool
+    message: str = ""

@@ -1,6 +1,6 @@
 # Sentinel - Payd Labs Server Management Platform
 
-Sentinel is a self-hosted DevOps portal for Payd Labs. It replaces per-repo SSH deploy scripts with a centralized system: one webhook secret per project, no SSH keys scattered across GitHub repos.
+Sentinel is a self-hosted DevOps portal for Payd Labs. It replaces per-repo SSH deploy scripts with a centralized system: one webhook secret per project, no SSH keys scattered across GitHub repos. It also manages custom domains with automatic TLS provisioning for any service that needs user-facing domain support.
 
 **Live:** [sentinel.paydlabs.com](https://sentinel.paydlabs.com)
 **Deploy Guide:** [DEPLOY.md](./DEPLOY.md) | [In-app guide](https://sentinel.paydlabs.com/docs)
@@ -11,10 +11,10 @@ Sentinel is a self-hosted DevOps portal for Payd Labs. It replaces per-repo SSH 
 
 ```
 Your Repo (GitHub Actions)                 Sentinel (on server)
-──────────────────────────                 ────────────────────
+--------------------------                 --------------------
 1. Build Docker image(s)
 2. Push to GHCR
-3. POST webhook to Sentinel   ─────→      4. Verify HMAC signature
+3. POST webhook to Sentinel   ------>      4. Verify HMAC signature
                                            5. docker compose pull
                                            6. docker compose up -d
                                            7. Health check (60s)
@@ -38,6 +38,26 @@ For the full step-by-step guide with examples, Dockerfile templates, and trouble
 
 ---
 
+## Managed Services
+
+All 10 services on the Payd Labs server (`46.101.240.141`) deploy through Sentinel:
+
+| Service | Domain | Type |
+|---------|--------|------|
+| payd-connect | connect.payd.money | blended (API + docs) |
+| payd-shops-api | shops-api.paydlabs.com | fastapi |
+| payd-shops-ui | shops.payd.money, \*.onpayd.shop | vue |
+| noni-api | noni.payd.money | fastapi + redis |
+| noni-ui | noni.payd.money | vue |
+| bradar | bradar.paydlabs.com | custom (Node/Express) |
+| payd-stables | stables.paydlabs.com | fastapi |
+| payd-labs-offline | offline.paydlabs.com | blended |
+| payd-labs-one-link | link.paydlabs.com, payd.one | fastapi |
+| payd-pos | pos.paydlabs.com, pos-api.paydlabs.com | blended |
+| sentinel | sentinel.paydlabs.com | blended (self-managed) |
+
+---
+
 ## Features
 
 | Feature | Description |
@@ -47,25 +67,50 @@ For the full step-by-step guide with examples, Dockerfile templates, and trouble
 | **Services** | List, restart, stop, start containers; view logs |
 | **Deployments** | Webhook-triggered deploys, manual deploy, rollback, history |
 | **Projects** | Register, scan, edit projects; manage env vars |
+| **Custom Domains** | Services register user domains via API; Sentinel writes Caddy blocks with on-demand TLS |
 | **Database** | Browse managed PostgreSQL: databases, tables, schemas, run queries |
-| **Domains** | Manage Caddy routes with TLS (ACME / Cloudflare DNS) |
+| **Domains** | Manage Caddy routes with TLS (ACME / Cloudflare DNS / on-demand) |
 | **Logs** | Aggregated log viewer across all containers |
 | **System** | CPU, memory, disk, network metrics |
 | **Audit** | Full action history |
 
 ---
 
+## Custom Domains
+
+Services like OneLink and Payd Shops can let their users bring custom domains. Sentinel is the central domain authority:
+
+1. **Admin enables custom domains** on a project and sets the upstream container (e.g. `payd-labs-one-link:8000`)
+2. **Admin generates a service API key** for the project
+3. **The service backend** calls Sentinel to register a domain:
+   ```bash
+   curl -X POST https://sentinel.paydlabs.com/api/v1/custom-domains \
+     -H "X-Service-Key: sak_..." \
+     -H "Content-Type: application/json" \
+     -d '{"domain": "mybrand.com"}'
+   ```
+4. **Sentinel writes a Caddy block** with `tls { on_demand }` and reloads
+5. **User points DNS** to `46.101.240.141`
+6. **Caddy auto-provisions a TLS cert** (validated via Sentinel's `/internal/domain-check` endpoint)
+
+The Caddy `on_demand_tls { ask }` endpoint points to `sentinel-api:8000/internal/domain-check`, which checks the `custom_domains` table. A catch-all `https://` block still routes unregistered domains to OneLink for backward compatibility.
+
+See the admin UI at **Custom Domains** in the sidebar, or the project detail page for service key management.
+
+---
+
 ## Architecture
 
 ```
-Browser → Caddy (TLS) → sentinel-api (FastAPI :8000) / sentinel-ui (Vue :80)
+Browser -> Caddy (TLS) -> sentinel-api (FastAPI :8000) / sentinel-ui (Vue :80)
 
 sentinel-api has:
-  - Docker socket → manages all containers on the server
-  - /apps/ volume → reads/writes compose files + .env for every project
-  - Docker CLI → runs docker compose pull/up for deployments
-  - SQLite → project records, deployments, audit log
-  - asyncpg → DigitalOcean Managed PostgreSQL (database browser)
+  - Docker socket -> manages all containers on the server
+  - /apps/ volume -> reads/writes compose files + .env for every project
+  - Docker CLI -> runs docker compose pull/up for deployments
+  - SQLite -> project records, custom domains, deployments, audit log
+  - asyncpg -> DigitalOcean Managed PostgreSQL (database browser)
+  - Caddy ask endpoint -> validates custom domains for on-demand TLS
 ```
 
 **Server:** DigitalOcean, Ubuntu 24.04, 4 CPU / 8GB RAM, IP `46.101.240.141`
@@ -93,29 +138,31 @@ npm run dev  # http://localhost:5173, proxies /api to :8000
 
 ```
 payd-labs-sentinel/
-├── sentinel-api/
-│   └── app/
-│       ├── main.py, config.py, auth.py, database.py
-│       ├── api/v1/          # Route handlers
-│       ├── services/        # Business logic
-│       ├── models/          # SQLAlchemy models
-│       ├── schemas/         # Pydantic schemas
-│       └── templates/       # Compose + workflow templates
-├── sentinel-ui/
-│   └── src/
-│       ├── views/           # Page components
-│       ├── components/      # Reusable UI
-│       ├── services/        # API clients
-│       └── stores/          # Pinia (auth, theme)
-├── DEPLOY.md                # Deployment guide
-└── .github/workflows/       # Sentinel's own CI/CD
+ sentinel-api/
+    app/
+       main.py, config.py, auth.py, database.py
+       api/v1/          # Route handlers (projects, deployments, custom_domains, domains, ...)
+       services/        # Business logic (deploy, caddy, project, ...)
+       models/          # SQLAlchemy models (Project, Deployment, CustomDomain, AuditLog, ...)
+       schemas/         # Pydantic schemas
+       templates/       # Compose + workflow templates
+ sentinel-ui/
+    src/
+       views/           # Page components
+       components/      # Reusable UI
+       services/        # API clients
+       stores/          # Pinia (auth, theme)
+ DEPLOY.md              # Deployment guide
+ .github/workflows/     # Sentinel's own CI/CD
 ```
 
 ---
 
 ## Auth
 
-Uses Payd Auth (`auth.payd.money`), same as Stables. Login with username + password → OTP → JWT. Access restricted by `is_admin` claim + `ALLOWED_USERNAMES` whitelist.
+Uses Payd Auth (`auth.payd.money`), same as Stables. Login with username + password -> OTP -> JWT. Access restricted by `is_admin` claim + `ALLOWED_USERNAMES` whitelist.
+
+For service-to-service auth (custom domains API), each project has a separate `service_api_key` sent via `X-Service-Key` header.
 
 ---
 
@@ -125,9 +172,12 @@ Uses Payd Auth (`auth.payd.money`), same as Stables. Login with username + passw
 |----------|---------|
 | `APP_ENV` | `production` |
 | `DATABASE_URL` | `sqlite+aiosqlite:////data/sentinel.db` |
-| `PAYD_AUTH_URL` | `https://auth.payd.money` |
+| `CORS_ORIGINS` | `https://sentinel.paydlabs.com` |
 | `PG_ADMIN_HOST` | `dbaas-db-xxx.db.ondigitalocean.com` |
 | `PG_ADMIN_PORT` | `25060` |
 | `PG_ADMIN_USER` | `doadmin` |
 | `PG_ADMIN_PASSWORD` | `...` |
 | `ALLOWED_USERNAMES` | `benaiah,vincentee,snow` |
+| `GHCR_TOKEN` | `ghp_...` (long-lived PAT for pulling private GHCR images) |
+| `GHCR_USER` | `getpayd-tech` |
+| `ENCRYPTION_KEY` | Fernet key for encrypting env vars at rest |

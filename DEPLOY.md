@@ -312,6 +312,8 @@ CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
 
 ## Migrating from SSH-based CI/CD to Sentinel
 
+> **Status (April 2026):** All 10 services have been migrated to webhook-based deploys. Legacy `DROPLET_*` secrets have been removed from all repos except sentinel itself (which keeps SSH as the primary deploy path due to a self-deploy race condition). The steps below are preserved for reference if new SSH-based repos are created in the future.
+
 Most existing Payd repos deploy via SSH (`appleboy/ssh-action`), which requires `DROPLET_IP`, `DROPLET_USER`, and `DROPLET_SSH_KEY` secrets. Here's how to migrate to the Sentinel webhook flow.
 
 ### What changes
@@ -419,6 +421,66 @@ After verifying the webhook deploy works (push a commit, check Sentinel → Depl
 ### Containers not showing in Sentinel
 - Make sure containers are on the `proxy` Docker network (required for Caddy routing)
 - Check that `docker-compose.yml` has `networks: proxy: external: true`
+
+---
+
+## Custom Domains (On-Demand TLS)
+
+Sentinel supports dynamic custom domains for any project. This lets services like OneLink or Payd Shops allow their users to bring custom domains with automatic TLS certificate provisioning.
+
+### How it works
+
+1. Sentinel stores custom domain records in its `custom_domains` table
+2. Each registered domain gets an explicit Caddy block with `tls { on_demand }`
+3. Caddy calls Sentinel's `/internal/domain-check?domain={host}` before issuing any cert
+4. Sentinel returns 200 if the domain is active, 404 otherwise
+5. Traffic routes directly to the project's configured upstream container
+
+### Setup for a project
+
+**1. Enable custom domains on the project**
+
+In Sentinel UI -> Projects -> click the project -> Edit:
+- Toggle **Enable custom domains** on
+- Set **Custom Domain Upstream** to the container:port (e.g. `payd-labs-one-link:8000`)
+- Save
+
+**2. Generate a service API key**
+
+On the project detail page, or via API:
+
+```bash
+curl -X POST https://sentinel.paydlabs.com/api/v1/projects/{project_id}/generate-service-key \
+  -H "x-auth-token: YOUR_ADMIN_TOKEN"
+```
+
+Store the returned `service_api_key` in the service's environment.
+
+**3. Register domains from your service backend**
+
+```bash
+curl -X POST https://sentinel.paydlabs.com/api/v1/custom-domains \
+  -H "X-Service-Key: sak_..." \
+  -H "Content-Type: application/json" \
+  -d '{"domain": "mybrand.com"}'
+```
+
+Returns the domain record with `status: "active"` if the Caddy block was written and reloaded successfully.
+
+**4. Tell the user to point DNS**
+
+The user creates an A record pointing their domain to `46.101.240.141`. Caddy provisions a Let's Encrypt cert automatically on first request.
+
+### Custom domains API reference
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/v1/custom-domains` | X-Service-Key | Register a domain for the project |
+| GET | `/api/v1/custom-domains` | X-Service-Key | List domains for the project |
+| DELETE | `/api/v1/custom-domains/{domain}` | X-Service-Key | Remove a domain |
+| GET | `/api/v1/custom-domains/all` | Admin JWT | List all domains (admin) |
+| DELETE | `/api/v1/custom-domains/admin/{domain}` | Admin JWT | Force-remove any domain (admin) |
+| GET | `/internal/domain-check?domain={host}` | None (internal) | Caddy ask endpoint |
 
 ---
 

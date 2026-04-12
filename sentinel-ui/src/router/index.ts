@@ -68,6 +68,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: 'Domains' },
   },
   {
+    path: '/custom-domains',
+    name: 'CustomDomains',
+    component: () => import('@/views/CustomDomainsView.vue'),
+    meta: { requiresAuth: true, title: 'Custom Domains' },
+  },
+  {
     path: '/logs',
     name: 'Logs',
     component: () => import('@/views/LogsView.vue'),

@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from app.api.v1 import auth, audit, dashboard, database, deployments, domains, logs, projects, services, system
+from app.api.v1 import auth, audit, custom_domains, dashboard, database, deployments, domains, logs, projects, services, system
 from app.config import settings
 from app.database import async_session_factory, engine, Base
 from app.tasks.scheduler import start_scheduler, stop_scheduler
@@ -76,6 +76,9 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await _ensure_column(conn, "projects", "description", "TEXT")
         await _ensure_column(conn, "projects", "compose_file", "VARCHAR(200)")
+        await _ensure_column(conn, "projects", "supports_custom_domains", "BOOLEAN DEFAULT 0")
+        await _ensure_column(conn, "projects", "custom_domain_upstream", "VARCHAR(300)")
+        await _ensure_column(conn, "projects", "service_api_key", "VARCHAR(200)")
 
     # Start background scheduler
     start_scheduler()
@@ -187,6 +190,8 @@ app.include_router(database.router, prefix="/api/v1", tags=["Database"])
 app.include_router(domains.router, prefix="/api/v1", tags=["Domains"])
 app.include_router(logs.router, prefix="/api/v1", tags=["Logs"])
 app.include_router(audit.router, prefix="/api/v1", tags=["Audit"])
+# Custom domains router has mixed prefixes (/internal/* and /api/v1/*), mounted at root.
+app.include_router(custom_domains.router)
 
 
 # ---------------------------------------------------------------------------

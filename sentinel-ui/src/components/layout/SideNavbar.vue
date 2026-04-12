@@ -27,6 +27,7 @@ const navItems = [
   { name: 'Projects', path: '/projects', icon: FolderGit2 },
   { name: 'Database', path: '/database', icon: Database },
   { name: 'Domains', path: '/domains', icon: Globe },
+  { name: 'Custom Domains', path: '/custom-domains', icon: Globe },
   { name: 'Logs', path: '/logs', icon: ScrollText },
   { name: 'System', path: '/system', icon: Activity },
   { name: 'Audit', path: '/audit', icon: ClipboardList },

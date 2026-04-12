@@ -35,6 +35,8 @@ class ProjectUpdate(BaseModel):
     health_endpoint: Optional[str] = None
     database_name: Optional[str] = None
     container_names: Optional[dict] = None
+    supports_custom_domains: Optional[bool] = None
+    custom_domain_upstream: Optional[str] = None
     status: Optional[str] = None
 
 
@@ -54,6 +56,9 @@ class ProjectResponse(BaseModel):
     health_endpoint: Optional[str] = None
     webhook_secret: Optional[str] = None
     database_name: Optional[str] = None
+    supports_custom_domains: bool = False
+    custom_domain_upstream: Optional[str] = None
+    service_api_key: Optional[str] = None
     status: str = "active"
     created_at: Optional[str] = None
     updated_at: Optional[str] = None

@@ -3,5 +3,6 @@ from app.models.project import Project
 from app.models.deployment import Deployment
 from app.models.audit_log import AuditLog
 from app.models.metrics_snapshot import MetricsSnapshot
+from app.models.custom_domain import CustomDomain
 
-__all__ = ["User", "Project", "Deployment", "AuditLog", "MetricsSnapshot"]
+__all__ = ["User", "Project", "Deployment", "AuditLog", "MetricsSnapshot", "CustomDomain"]

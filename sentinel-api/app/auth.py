@@ -1,8 +1,10 @@
-"""Payd Auth integration - admin verification dependency.
+"""Authentication dependencies.
 
-Decodes JWT claims from x-auth-token header and verifies admin status.
-Payd Auth (auth.payd.money) handles actual token validation; we only
-decode the payload to extract claims for authorization decisions.
+- require_admin: Decodes JWT claims from x-auth-token header and verifies
+  admin status. Payd Auth (auth.payd.money) handles actual token validation;
+  we only decode the payload for authorization decisions.
+- require_service_key: Validates X-Service-Key header against project
+  service_api_key for service-to-service auth (custom domains API).
 """
 from __future__ import annotations
 
@@ -10,7 +12,11 @@ import base64
 import json
 import logging
 
-from fastapi import HTTPException, Request
+from fastapi import Depends, HTTPException, Request
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -55,3 +61,32 @@ async def require_admin(request: Request) -> dict:
             raise HTTPException(status_code=403, detail="Access denied. Your account is not whitelisted.")
 
     return claims
+
+
+async def require_service_key(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Authenticate a service-to-service call via X-Service-Key header.
+
+    Looks up the project whose ``service_api_key`` matches the header
+    value. The project must also have ``supports_custom_domains`` enabled.
+
+    Returns the Project ORM instance so the caller knows which project
+    is making the request.
+    """
+    from app.models.project import Project
+
+    key = request.headers.get("x-service-key")
+    if not key:
+        raise HTTPException(status_code=401, detail="Missing X-Service-Key header")
+
+    result = await db.execute(
+        select(Project).where(Project.service_api_key == key)
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=401, detail="Invalid service key")
+    if not project.supports_custom_domains:
+        raise HTTPException(status_code=403, detail="Custom domains not enabled for this project")
+    return project

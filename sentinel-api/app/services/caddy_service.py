@@ -19,11 +19,10 @@ CADDYFILE_PATH = Path("/apps/caddy/Caddyfile")
 _INFRASTRUCTURE_DOMAINS = {"", "https://"}
 
 # NOTE: These are regular strings, NOT f-strings. {host} is a Caddy placeholder.
-GLOBAL_CONFIG_BLOCK = """{
-    on_demand_tls {
-        ask http://payd-labs-one-link:8000/internal/domain-check?domain={host}
-    }
-}"""
+# The ask URL points to Sentinel, which validates against its custom_domains table.
+ON_DEMAND_TLS_DIRECTIVE = """    on_demand_tls {
+        ask http://sentinel-api:8000/internal/domain-check?domain={host}
+    }"""
 
 CATCHALL_BLOCK = """https:// {
     tls {
@@ -134,7 +133,13 @@ def has_on_demand_tls() -> bool:
 
 
 async def enable_on_demand_tls() -> None:
-    """Add global config + catch-all blocks to enable on-demand TLS."""
+    """Enable on-demand TLS by merging the directive into the global block.
+
+    If a global block (bare ``{ ... }``) already exists (e.g. from an email
+    directive), the on_demand_tls directive is appended inside it. Otherwise
+    a new global block is created. A catch-all ``https://`` block is added
+    at the end of the file.
+    """
     if has_on_demand_tls():
         raise ValueError("On-demand TLS is already enabled")
 
@@ -143,22 +148,48 @@ async def enable_on_demand_tls() -> None:
         existing = CADDYFILE_PATH.read_text().strip()
 
     CADDYFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    content = GLOBAL_CONFIG_BLOCK + "\n\n" + existing + "\n\n" + CATCHALL_BLOCK + "\n"
+
+    # Check for an existing global block (starts with { on its own line)
+    global_match = re.match(r"^(\{[^}]*\})", existing, re.DOTALL)
+    if global_match:
+        # Merge the on_demand_tls directive into the existing global block
+        old_global = global_match.group(1)
+        # Insert the directive before the closing brace
+        closing_idx = old_global.rfind("}")
+        new_global = old_global[:closing_idx].rstrip() + "\n" + ON_DEMAND_TLS_DIRECTIVE + "\n}"
+        content = existing.replace(old_global, new_global, 1)
+    else:
+        # No global block yet - create one
+        new_global = "{\n" + ON_DEMAND_TLS_DIRECTIVE + "\n}"
+        content = new_global + "\n\n" + existing
+
+    content = content.strip() + "\n\n" + CATCHALL_BLOCK + "\n"
     CADDYFILE_PATH.write_text(content)
-    logger.info("Enabled on-demand TLS for OneLink custom domains")
+    logger.info("Enabled on-demand TLS (ask -> sentinel-api)")
 
 
 async def disable_on_demand_tls() -> None:
-    """Remove global config + catch-all blocks to disable on-demand TLS."""
+    """Remove on-demand TLS directive from global block and the catch-all."""
     if not has_on_demand_tls():
         raise ValueError("On-demand TLS is not currently enabled")
 
     content = CADDYFILE_PATH.read_text()
-    raw_blocks = _parse_caddyfile_raw()
 
+    # Remove the on_demand_tls directive from the global block
+    content = re.sub(
+        r"\n?\s*on_demand_tls\s*\{[^}]*\}\n?",
+        "\n",
+        content,
+    )
+
+    # Remove the catch-all https:// block
+    raw_blocks = _parse_caddyfile_raw()
     for block in raw_blocks:
-        if block["domain"] in _INFRASTRUCTURE_DOMAINS:
+        if block["domain"] == "https://":
             content = content.replace(block["raw_config"], "")
+
+    # If the global block is now empty (only whitespace/newlines between braces), remove it
+    content = re.sub(r"^\{\s*\}\n*", "", content.strip(), count=1)
 
     content = re.sub(r"\n{3,}", "\n\n", content).strip() + "\n"
     CADDYFILE_PATH.write_text(content)
@@ -178,7 +209,11 @@ def _build_block(
     lines = [f"{domain} {{"]
 
     # TLS configuration
-    if tls_mode == "cloudflare_dns":
+    if tls_mode == "on_demand":
+        lines.append("    tls {")
+        lines.append("        on_demand")
+        lines.append("    }")
+    elif tls_mode == "cloudflare_dns":
         lines.append("    tls {")
         lines.append("        dns cloudflare {$CLOUDFLARE_API_TOKEN}")
         lines.append("    }")

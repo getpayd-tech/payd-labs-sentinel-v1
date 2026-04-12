@@ -206,6 +206,9 @@ export interface ProjectInfo {
   database_name?: string | null
   webhook_secret?: string | null
   health_endpoint: string | null
+  supports_custom_domains?: boolean
+  custom_domain_upstream?: string | null
+  service_api_key?: string | null
   created_at: string
   updated_at: string
 }
@@ -242,6 +245,8 @@ export interface ProjectUpdate {
   database_name?: string
   container_names?: Record<string, string>
   health_endpoint?: string
+  supports_custom_domains?: boolean
+  custom_domain_upstream?: string
 }
 
 export interface TemplateInfo {
@@ -330,7 +335,7 @@ export interface UpstreamTarget {
   port: number
 }
 
-export type TlsMode = 'auto' | 'cloudflare_dns' | 'off'
+export type TlsMode = 'auto' | 'cloudflare_dns' | 'on_demand' | 'off'
 
 export interface DomainInfo {
   domain: string
@@ -399,4 +404,23 @@ export interface AuditParams {
   date_to?: string
   page?: number
   per_page?: number
+}
+
+// ─── Custom Domains ─────────────────────────────────────────────────────────
+
+export interface CustomDomain {
+  id: string
+  project_id: string
+  project_name: string
+  domain: string
+  status: 'pending' | 'active' | 'failed' | 'removing'
+  error_message: string | null
+  verified_at: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface CustomDomainList {
+  items: CustomDomain[]
+  total: number
 }

@@ -40,6 +40,8 @@ const editForm = ref({
   database_name: '',
   compose_path: '',
   compose_file: '',
+  supports_custom_domains: false,
+  custom_domain_upstream: '',
 })
 
 const editContainers = ref<ContainerRow[]>([])
@@ -148,6 +150,8 @@ function openEditModal() {
     database_name: p.database_name || '',
     compose_path: p.compose_path || '',
     compose_file: p.compose_file || '',
+    supports_custom_domains: !!p.supports_custom_domains,
+    custom_domain_upstream: p.custom_domain_upstream || '',
   }
   editContainers.value = Object.entries(p.container_names || {}).map(
     ([name, container]) => ({ name, container: String(container) }),
@@ -263,6 +267,18 @@ function confirmDelete() {
         </div>
       </div>
 
+      <!-- Service API Key (custom domains) -->
+      <div v-if="project.service_api_key" class="card p-5">
+        <h3 class="text-sm font-heading font-semibold text-text mb-2">Service API Key</h3>
+        <p class="text-xs text-text-secondary mb-2">Used by the service to register custom domains via X-Service-Key header.</p>
+        <div class="flex items-center gap-2">
+          <code class="flex-1 px-3 py-2 text-xs font-mono bg-surface-tertiary rounded-lg text-text break-all">{{ project.service_api_key }}</code>
+          <button class="p-2 rounded-lg text-text-tertiary hover:text-accent transition-colors shrink-0" @click="copy(project.service_api_key!, 'sak')">
+            <component :is="copied === 'sak' ? Check : Copy" class="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
       <!-- Containers -->
       <div v-if="project.container_names" class="card p-5">
         <h3 class="text-sm font-heading font-semibold text-text mb-3">Containers</h3>
@@ -340,6 +356,21 @@ function confirmDelete() {
         <Input v-model="editForm.compose_path" label="Compose Path" placeholder="/apps/<service>" />
         <Input v-model="editForm.compose_file" label="Compose File" placeholder="docker-compose.yml (leave blank for default)" />
         <Input v-model="editForm.database_name" label="Database Name" placeholder="postgres db name (optional)" />
+
+        <!-- Custom domains settings -->
+        <div class="border-t border-border pt-4 mt-2">
+          <div class="flex items-center gap-3 mb-3">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input v-model="editForm.supports_custom_domains" type="checkbox" class="sr-only peer" />
+              <div class="w-9 h-5 bg-surface-tertiary rounded-full peer peer-checked:bg-accent transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full" />
+            </label>
+            <span class="text-xs font-medium text-text-secondary">Enable custom domains</span>
+          </div>
+          <div v-if="editForm.supports_custom_domains" class="space-y-3">
+            <Input v-model="editForm.custom_domain_upstream" label="Custom Domain Upstream" placeholder="container-name:8000" />
+            <p class="text-xs text-text-tertiary">The container:port that custom domains route to via Caddy reverse proxy.</p>
+          </div>
+        </div>
 
         <div>
           <div class="flex items-center justify-between mb-1.5">

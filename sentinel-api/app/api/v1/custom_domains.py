@@ -132,6 +132,7 @@ async def register_custom_domain(
             pass
 
     await db.flush()
+    await db.refresh(cd, ["updated_at"])
     response = _domain_to_response(cd, project.display_name)
 
     await log_action(

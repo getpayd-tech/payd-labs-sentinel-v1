@@ -408,9 +408,32 @@ async def execute_wizard(
     if create_db and database_name:
         try:
             from app.services.db_service import create_database
+            from app.config import settings as app_settings
             db_password = _generate_webhook_secret()
             await create_database(database_name, db_password)
-            steps.append({"step": 6, "name": "Create PostgreSQL database", "status": "complete", "message": f"Database '{database_name}' created (user: {database_name})"})
+
+            # Auto-populate DATABASE_URL in the project's .env file
+            db_url = (
+                f"postgresql+asyncpg://{database_name}:{db_password}"
+                f"@{app_settings.pg_admin_host}:{app_settings.pg_admin_port}"
+                f"/{database_name}?ssl=require"
+            )
+            env_path = project_dir / ".env"
+            try:
+                if env_path.exists():
+                    current = env_path.read_text()
+                    if "DATABASE_URL=" not in current:
+                        env_path.write_text(current.rstrip() + f"\nDATABASE_URL={db_url}\n")
+                    else:
+                        import re as _re
+                        updated = _re.sub(r"^DATABASE_URL=.*$", f"DATABASE_URL={db_url}", current, flags=_re.MULTILINE)
+                        env_path.write_text(updated)
+                else:
+                    env_path.write_text(f"DATABASE_URL={db_url}\n")
+            except Exception as env_exc:
+                logger.warning("Failed to write DATABASE_URL to .env: %s", env_exc)
+
+            steps.append({"step": 6, "name": "Create PostgreSQL database", "status": "complete", "message": f"Database '{database_name}' created (user: {database_name}). DATABASE_URL written to .env"})
         except Exception as exc:
             steps.append({"step": 6, "name": "Create PostgreSQL database", "status": "error", "message": str(exc)})
     else:

@@ -98,6 +98,19 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: 'Deploy Guide' },
   },
   {
+    path: '/public/docs',
+    component: () => import('@/components/docs/DocsLayout.vue'),
+    meta: { layout: 'blank', requiresAuth: false },
+    children: [
+      { path: '', name: 'DocsOverview', component: () => import('@/views/docs/OverviewView.vue'), meta: { layout: 'blank', requiresAuth: false, title: 'Sentinel Docs' } },
+      { path: 'deploy-guide', name: 'DocsDeployGuide', component: () => import('@/views/docs/DeployGuideView.vue'), meta: { layout: 'blank', requiresAuth: false, title: 'Deploy Guide - Sentinel Docs' } },
+      { path: 'cli', name: 'DocsCli', component: () => import('@/views/docs/CliView.vue'), meta: { layout: 'blank', requiresAuth: false, title: 'CLI - Sentinel Docs' } },
+      { path: 'mcp', name: 'DocsMcp', component: () => import('@/views/docs/McpView.vue'), meta: { layout: 'blank', requiresAuth: false, title: 'MCP Server - Sentinel Docs' } },
+      { path: 'custom-domains', name: 'DocsCustomDomains', component: () => import('@/views/docs/CustomDomainsView.vue'), meta: { layout: 'blank', requiresAuth: false, title: 'Custom Domains - Sentinel Docs' } },
+      { path: 'api', name: 'DocsApi', component: () => import('@/views/docs/ApiReferenceView.vue'), meta: { layout: 'blank', requiresAuth: false, title: 'API Reference - Sentinel Docs' } },
+    ],
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: () => import('@/views/NotFoundView.vue'),

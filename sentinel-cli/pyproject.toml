@@ -5,14 +5,33 @@ build-backend = "hatchling.build"
 [project]
 name = "sentinel-cli"
 version = "0.1.0"
-description = "CLI and MCP server for Sentinel DevOps portal"
+description = "CLI and MCP server for the Sentinel DevOps portal - manage deployments, services, and projects"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12"
+authors = [
+    { name = "Payd Labs", email = "dev@payd.money" },
+]
+keywords = ["devops", "deployment", "docker", "mcp", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: System :: Systems Administration",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 dependencies = [
     "typer>=0.15.0",
     "httpx>=0.28.0",
     "rich>=13.0.0",
     "mcp>=1.0.0",
 ]
+
+[project.urls]
+Homepage = "https://sentinel.paydlabs.com"
+Repository = "https://github.com/getpayd-tech/payd-labs-sentinel-v1"
 
 [project.scripts]
 sentinel = "sentinel_cli.cli:app"

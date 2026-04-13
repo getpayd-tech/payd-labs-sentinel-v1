@@ -484,6 +484,55 @@ The user creates an A record pointing their domain to `46.101.240.141`. Caddy pr
 
 ---
 
+## Using the CLI
+
+Sentinel includes a terminal CLI for managing deployments without the web UI.
+
+### Install
+
+```bash
+cd payd-labs-sentinel
+python3.12 -m venv sentinel-cli/.venv
+source sentinel-cli/.venv/bin/activate
+pip install -e sentinel-cli/
+```
+
+### First-time login
+
+```bash
+sentinel login
+```
+
+Enter your Payd Auth username, password, and OTP code. The CLI caches tokens at `~/.sentinel/credentials.json` and auto-refreshes them. You can also skip the login flow by setting `SENTINEL_TOKEN` env var with a valid admin JWT.
+
+### Deploy from the terminal
+
+```bash
+sentinel deploy my-project          # Deploy latest
+sentinel deploy my-project --tag v2 # Deploy specific tag
+sentinel deployments -p my-project  # Check history
+sentinel logs my-container --tail 50 --since 1h
+sentinel status                     # All projects + last deploy
+```
+
+### MCP server for AI agents
+
+After installing the CLI package, configure Claude Code to use the MCP server:
+
+```json
+{
+  "mcpServers": {
+    "sentinel": {
+      "command": "/path/to/sentinel-cli/.venv/bin/sentinel-mcp"
+    }
+  }
+}
+```
+
+Agents can then call tools like `sentinel_deploy`, `sentinel_get_logs`, `sentinel_list_projects`, etc.
+
+---
+
 ## Reference
 
 ### Webhook endpoint

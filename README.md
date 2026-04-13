@@ -73,6 +73,8 @@ All 10 services on the Payd Labs server (`46.101.240.141`) deploy through Sentin
 | **Logs** | Aggregated log viewer across all containers |
 | **System** | CPU, memory, disk, network metrics |
 | **Audit** | Full action history |
+| **CLI** | `sentinel` command for deploys, logs, status from the terminal |
+| **MCP Server** | `sentinel-mcp` exposes tools for AI agents (Claude Code, etc.) |
 
 ---
 
@@ -96,6 +98,63 @@ Services like OneLink and Payd Shops can let their users bring custom domains. S
 The Caddy `on_demand_tls { ask }` endpoint points to `sentinel-api:8000/internal/domain-check`, which checks the `custom_domains` table. A catch-all `https://` block still routes unregistered domains to OneLink for backward compatibility.
 
 See the admin UI at **Custom Domains** in the sidebar, or the project detail page for service key management.
+
+---
+
+## CLI + MCP Server
+
+Sentinel ships a Python CLI and an MCP server for AI agent integration. Both live in `sentinel-cli/`.
+
+### Install
+
+```bash
+# Clone the repo (or use an existing checkout)
+git clone git@github.com:getpayd-tech/payd-labs-sentinel-v1.git
+cd payd-labs-sentinel-v1
+
+# Create a venv and install
+python3.12 -m venv sentinel-cli/.venv
+source sentinel-cli/.venv/bin/activate
+pip install -e sentinel-cli/
+```
+
+### CLI usage
+
+```bash
+sentinel login                        # OTP auth, caches token at ~/.sentinel/
+sentinel projects                     # List all projects
+sentinel services                     # List all containers
+sentinel status                       # Projects + their last deploy
+sentinel deploy bradar                # Trigger deploy by project name
+sentinel deploy bradar --tag v1.2.3   # Deploy a specific image tag
+sentinel rollback bradar <deploy-id>  # Roll back to a previous deploy
+sentinel deployments --project bradar # Deployment history
+sentinel logs sentinel-api --tail 50  # Container logs
+sentinel logs bradar --since 1h       # Logs from the last hour
+```
+
+Auth: run `sentinel login` once (OTP flow, tokens cached with auto-refresh), or set `SENTINEL_TOKEN` env var with a valid JWT.
+
+Override the API URL: `SENTINEL_URL=http://localhost:8000 sentinel projects`
+
+### MCP server for Claude Code
+
+After installing, add to your Claude Code settings:
+
+```json
+// .claude/settings.json (project-level) or ~/.claude/settings.json (global)
+{
+  "mcpServers": {
+    "sentinel": {
+      "command": "/path/to/payd-labs-sentinel-v1/sentinel-cli/.venv/bin/sentinel-mcp"
+    }
+  }
+}
+```
+
+The MCP server exposes 7 tools: `sentinel_list_projects`, `sentinel_list_services`, `sentinel_list_deployments`, `sentinel_deploy`, `sentinel_rollback`, `sentinel_get_logs`, `sentinel_project_status`.
+
+Auth: reads from `~/.sentinel/credentials.json` (run `sentinel login` first) or `SENTINEL_TOKEN` env var.
 
 ---
 
@@ -152,6 +211,13 @@ payd-labs-sentinel/
        components/      # Reusable UI
        services/        # API clients
        stores/          # Pinia (auth, theme)
+ sentinel-cli/
+    sentinel_cli/
+       cli.py           # Typer CLI (sentinel command)
+       mcp_server.py    # FastMCP server (sentinel-mcp command)
+       client.py        # Shared async httpx API client
+       auth.py          # OTP login, token cache, auto-refresh
+       config.py        # URL + credential paths
  DEPLOY.md              # Deployment guide
  .github/workflows/     # Sentinel's own CI/CD
 ```

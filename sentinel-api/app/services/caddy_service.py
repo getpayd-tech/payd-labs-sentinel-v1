@@ -18,10 +18,10 @@ CADDYFILE_PATH = Path("/apps/caddy/Caddyfile")
 # Infrastructure block identifiers (not user-managed domains)
 _INFRASTRUCTURE_DOMAINS = {"", "https://"}
 
-# NOTE: These are regular strings, NOT f-strings. {host} is a Caddy placeholder.
 # The ask URL points to Sentinel, which validates against its custom_domains table.
+# Caddy appends ?domain=<name> to the URL automatically - do NOT include {host}.
 ON_DEMAND_TLS_DIRECTIVE = """    on_demand_tls {
-        ask http://sentinel-api:8000/internal/domain-check?domain={host}
+        ask http://sentinel-api:8000/internal/domain-check
     }"""
 
 CATCHALL_BLOCK = """https:// {

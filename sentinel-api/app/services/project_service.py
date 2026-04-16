@@ -92,7 +92,7 @@ services:
     ports:
       - "{port}"
     networks:
-      - payd-network
+      - proxy
 """
 
     if project.health_endpoint:
@@ -106,7 +106,7 @@ services:
 
     compose += """
 networks:
-  payd-network:
+  proxy:
     external: true
 """
     return compose

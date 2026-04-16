@@ -38,8 +38,8 @@ async def _get_pool(database: str | None = None) -> asyncpg.Pool:
             password=settings.pg_admin_password,
             database=db_name,
             ssl="require" if settings.pg_admin_sslmode == "require" else None,
-            min_size=1,
-            max_size=3,
+            min_size=0,
+            max_size=2,
             command_timeout=30,
         )
     return _pools[db_name]
@@ -81,37 +81,15 @@ async def list_databases() -> list[dict[str, Any]]:
             """
         )
 
-        result: list[dict[str, Any]] = []
-        for row in rows:
-            name = row["name"]
-            size_mb = round((row["size_bytes"] or 0) / (1024 * 1024), 2)
-
-            # Count tables (connect to each DB individually)
-            tables_count = 0
-            try:
-                db_conn = await _get_admin_conn(database=name)
-                try:
-                    count_row = await db_conn.fetchrow(
-                        """
-                        SELECT count(*) AS cnt
-                        FROM information_schema.tables
-                        WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
-                        """
-                    )
-                    tables_count = count_row["cnt"] if count_row else 0
-                finally:
-                    await _release_conn(db_conn)
-            except Exception as exc:
-                logger.debug("Cannot count tables for %s (may lack CONNECT privilege): %s", name, exc)
-
-            result.append({
-                "name": name,
-                "size_mb": size_mb,
+        return [
+            {
+                "name": row["name"],
+                "size_mb": round((row["size_bytes"] or 0) / (1024 * 1024), 2),
                 "owner": row["owner"],
-                "tables_count": tables_count,
-            })
-
-        return result
+                "tables_count": 0,  # counted when user drills into a specific DB
+            }
+            for row in rows
+        ]
     finally:
         await _release_conn(conn)
 

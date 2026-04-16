@@ -3,6 +3,9 @@
 Uses asyncpg to connect to the managed PostgreSQL instance and provides
 helpers for listing databases, tables, schemas, running read-only queries,
 and creating new databases.
+
+Connections are pooled per database name (max 3 connections per pool) to
+avoid exhausting DigitalOcean's managed PostgreSQL connection limit.
 """
 from __future__ import annotations
 
@@ -18,20 +21,39 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Connection helpers
+# Connection pool management
 # ---------------------------------------------------------------------------
 
-async def _get_admin_conn(database: str | None = None) -> asyncpg.Connection:
-    """Open a connection to the managed PostgreSQL using admin credentials."""
-    return await asyncpg.connect(
-        host=settings.pg_admin_host,
-        port=settings.pg_admin_port,
-        user=settings.pg_admin_user,
-        password=settings.pg_admin_password,
-        database=database or settings.pg_admin_database,
-        ssl="require" if settings.pg_admin_sslmode == "require" else None,
-        timeout=15,
-    )
+_pools: dict[str, asyncpg.Pool] = {}
+
+
+async def _get_pool(database: str | None = None) -> asyncpg.Pool:
+    """Get or create a connection pool for the given database."""
+    db_name = database or settings.pg_admin_database
+    if db_name not in _pools or _pools[db_name]._closed:
+        _pools[db_name] = await asyncpg.create_pool(
+            host=settings.pg_admin_host,
+            port=settings.pg_admin_port,
+            user=settings.pg_admin_user,
+            password=settings.pg_admin_password,
+            database=db_name,
+            ssl="require" if settings.pg_admin_sslmode == "require" else None,
+            min_size=1,
+            max_size=3,
+            command_timeout=30,
+        )
+    return _pools[db_name]
+
+
+async def _get_admin_conn(database: str | None = None) -> asyncpg.pool.PoolConnectionProxy:
+    """Acquire a connection from the pool for the given database."""
+    pool = await _get_pool(database)
+    return await pool.acquire()
+
+
+async def _release_conn(conn: asyncpg.pool.PoolConnectionProxy) -> None:
+    """Release a connection back to its pool."""
+    await conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +100,7 @@ async def list_databases() -> list[dict[str, Any]]:
                     )
                     tables_count = count_row["cnt"] if count_row else 0
                 finally:
-                    await db_conn.close()
+                    await _release_conn(db_conn)
             except Exception as exc:
                 logger.debug("Cannot count tables for %s (may lack CONNECT privilege): %s", name, exc)
 
@@ -91,7 +113,7 @@ async def list_databases() -> list[dict[str, Any]]:
 
         return result
     finally:
-        await conn.close()
+        await _release_conn(conn)
 
 
 async def list_tables(db_name: str) -> list[dict[str, Any]]:
@@ -127,7 +149,7 @@ async def list_tables(db_name: str) -> list[dict[str, Any]]:
             for row in rows
         ]
     finally:
-        await conn.close()
+        await _release_conn(conn)
 
 
 async def get_table_schema(db_name: str, table_name: str) -> dict[str, Any]:
@@ -181,7 +203,7 @@ async def get_table_schema(db_name: str, table_name: str) -> dict[str, Any]:
             ],
         }
     finally:
-        await conn.close()
+        await _release_conn(conn)
 
 
 async def execute_query(db_name: str, sql: str) -> dict[str, Any]:
@@ -240,7 +262,7 @@ async def execute_query(db_name: str, sql: str) -> dict[str, Any]:
             "execution_time_ms": elapsed_ms,
         }
     finally:
-        await conn.close()
+        await _release_conn(conn)
 
 
 async def create_database(name: str, password: str) -> dict[str, Any]:
@@ -276,4 +298,4 @@ async def create_database(name: str, password: str) -> dict[str, Any]:
         logger.info("Created database and user: %s", name)
         return {"name": name, "user": name, "created": True}
     finally:
-        await conn.close()
+        await _release_conn(conn)

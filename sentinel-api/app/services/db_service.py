@@ -21,39 +21,26 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Connection pool management
+# Connection helpers
 # ---------------------------------------------------------------------------
 
-_pools: dict[str, asyncpg.Pool] = {}
+async def _get_admin_conn(database: str | None = None) -> asyncpg.Connection:
+    """Open a single connection to the managed PostgreSQL.
 
-
-async def _get_pool(database: str | None = None) -> asyncpg.Pool:
-    """Get or create a connection pool for the given database."""
-    db_name = database or settings.pg_admin_database
-    if db_name not in _pools or _pools[db_name]._closed:
-        _pools[db_name] = await asyncpg.create_pool(
-            host=settings.pg_admin_host,
-            port=settings.pg_admin_port,
-            user=settings.pg_admin_user,
-            password=settings.pg_admin_password,
-            database=db_name,
-            ssl="require" if settings.pg_admin_sslmode == "require" else None,
-            min_size=0,
-            max_size=2,
-            command_timeout=30,
-        )
-    return _pools[db_name]
-
-
-async def _get_admin_conn(database: str | None = None) -> asyncpg.pool.PoolConnectionProxy:
-    """Acquire a connection from the pool for the given database."""
-    pool = await _get_pool(database)
-    return await pool.acquire()
-
-
-async def _release_conn(conn: asyncpg.pool.PoolConnectionProxy) -> None:
-    """Release a connection back to its pool."""
-    await conn.close()
+    Sentinel makes infrequent admin queries (database browser, wizard) so a
+    simple connect/close per request is fine. No persistent pool - this avoids
+    consuming connection slots on the managed PG which is shared across all
+    services on the server.
+    """
+    return await asyncpg.connect(
+        host=settings.pg_admin_host,
+        port=settings.pg_admin_port,
+        user=settings.pg_admin_user,
+        password=settings.pg_admin_password,
+        database=database or settings.pg_admin_database,
+        ssl="require" if settings.pg_admin_sslmode == "require" else None,
+        timeout=15,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +78,7 @@ async def list_databases() -> list[dict[str, Any]]:
             for row in rows
         ]
     finally:
-        await _release_conn(conn)
+        await conn.close()
 
 
 async def list_tables(db_name: str) -> list[dict[str, Any]]:
@@ -127,7 +114,7 @@ async def list_tables(db_name: str) -> list[dict[str, Any]]:
             for row in rows
         ]
     finally:
-        await _release_conn(conn)
+        await conn.close()
 
 
 async def get_table_schema(db_name: str, table_name: str) -> dict[str, Any]:
@@ -181,7 +168,7 @@ async def get_table_schema(db_name: str, table_name: str) -> dict[str, Any]:
             ],
         }
     finally:
-        await _release_conn(conn)
+        await conn.close()
 
 
 async def execute_query(db_name: str, sql: str) -> dict[str, Any]:
@@ -240,7 +227,7 @@ async def execute_query(db_name: str, sql: str) -> dict[str, Any]:
             "execution_time_ms": elapsed_ms,
         }
     finally:
-        await _release_conn(conn)
+        await conn.close()
 
 
 async def create_database(name: str, password: str) -> dict[str, Any]:
@@ -276,4 +263,4 @@ async def create_database(name: str, password: str) -> dict[str, Any]:
         logger.info("Created database and user: %s", name)
         return {"name": name, "user": name, "created": True}
     finally:
-        await _release_conn(conn)
+        await conn.close()

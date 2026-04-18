@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 APPS_DIR = Path("/apps")
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
-SERVER_IP = "46.101.240.141"
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +231,8 @@ def generate_workflow(
     template = template_file.read_text()
     ghcr = _ghcr_image(github_repo)
 
+    from app.services.instance_config import get_effective
+    sentinel_url = get_effective("sentinel_url").rstrip("/") or "http://localhost:8000"
     replacements = {
         "{PROJECT_NAME}": name,
         "{DISPLAY_NAME}": display_name,
@@ -239,6 +240,7 @@ def generate_workflow(
         "{GHCR_IMAGE_API}": _ghcr_image(github_repo, "api"),
         "{GHCR_IMAGE_UI}": _ghcr_image(github_repo, "ui"),
         "{BUILD_CONTEXT}": ".",
+        "{SENTINEL_URL}": sentinel_url,
     }
 
     content = template

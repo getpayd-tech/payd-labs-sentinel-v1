@@ -40,6 +40,29 @@ class Settings(BaseSettings):
     # If empty, any admin can log in
     allowed_usernames: str = ""
 
+    # --- Self-host instance config (overridable via /setup wizard) -----------
+    # Public URL of THIS Sentinel instance. Used in generated CI workflows
+    # (webhook URL) and any UI text that references the instance URL.
+    sentinel_url: str = "http://localhost:8000"
+
+    # Docker container name for the Caddy reverse proxy on the host.
+    caddy_container: str = "caddy-proxy"
+
+    # External Docker network used by Caddy + deployed services.
+    proxy_network: str = "proxy"
+
+    # On-demand TLS catch-all upstream. If blank, no catch-all block is emitted
+    # in the Caddyfile and unregistered domains get a clean 404 from Caddy.
+    # Existing Payd Labs deployment should set this to "payd-labs-one-link:8000"
+    # via the sentinel_config.json file so OneLink custom domains keep working.
+    catchall_upstream: str = ""
+
+    # Informational server IP shown in the UI's DNS instructions.
+    server_ip: str = ""
+
+    # Path to the persistent instance-config JSON (setup wizard output).
+    config_file: str = "/data/sentinel_config.json"
+
     @property
     def allowed_username_list(self) -> list[str]:
         return [u.strip().lower() for u in self.allowed_usernames.split(",") if u.strip()]

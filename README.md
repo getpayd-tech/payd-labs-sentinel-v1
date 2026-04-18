@@ -4,6 +4,7 @@ Sentinel is a self-hosted DevOps portal for Payd Labs. It replaces per-repo SSH 
 
 **Live:** [sentinel.paydlabs.com](https://sentinel.paydlabs.com)
 **Deploy Guide:** [DEPLOY.md](./DEPLOY.md) | [In-app guide](https://sentinel.paydlabs.com/docs)
+**Self-hosting:** [SELFHOST.md](./SELFHOST.md)
 
 ---
 

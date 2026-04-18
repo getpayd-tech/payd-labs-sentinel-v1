@@ -104,6 +104,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: 'Deploy Guide' },
   },
   {
+    path: '/setup',
+    name: 'Setup',
+    component: () => import('@/views/SetupView.vue'),
+    meta: { layout: 'blank', requiresAuth: true, title: 'Setup' },
+  },
+  {
     path: '/public/docs',
     component: () => import('@/components/docs/DocsLayout.vue'),
     meta: { layout: 'blank', requiresAuth: false },
@@ -143,8 +149,8 @@ function decodeJwt(token: string): Record<string, unknown> | null {
   }
 }
 
-// Auth guard - check sentinel_admin_token + is_admin claim
-router.beforeEach((to, _from, next) => {
+// Auth + setup-wizard guard
+router.beforeEach(async (to, _from, next) => {
   const token = localStorage.getItem('sentinel_admin_token')
   let isAuthenticated = false
 
@@ -155,12 +161,29 @@ router.beforeEach((to, _from, next) => {
   }
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    next('/login')
-  } else if (to.path === '/login' && isAuthenticated) {
-    next('/')
-  } else {
-    next()
+    return next('/login')
   }
+  if (to.path === '/login' && isAuthenticated) {
+    return next('/')
+  }
+
+  // Setup wizard redirect: authed + setup incomplete + not going to /setup
+  if (isAuthenticated && to.path !== '/setup' && to.path !== '/login') {
+    try {
+      const { useSetupStore } = await import('@/stores/setup')
+      const store = useSetupStore()
+      if (store.isSetupComplete === null) {
+        await store.fetchStatus()
+      }
+      if (store.isSetupComplete === false) {
+        return next('/setup')
+      }
+    } catch {
+      // If setup status is unreachable, don't block navigation
+    }
+  }
+
+  next()
 })
 
 // Dynamic document title

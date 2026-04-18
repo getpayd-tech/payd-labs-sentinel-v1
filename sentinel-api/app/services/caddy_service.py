@@ -11,6 +11,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from app.services.instance_config import get_effective
+
 logger = logging.getLogger(__name__)
 
 CADDYFILE_PATH = Path("/apps/caddy/Caddyfile")
@@ -24,12 +26,23 @@ ON_DEMAND_TLS_DIRECTIVE = """    on_demand_tls {
         ask http://sentinel-api:8000/internal/domain-check
     }"""
 
-CATCHALL_BLOCK = """https:// {
-    tls {
-        on_demand
-    }
-    reverse_proxy payd-labs-one-link:8000
-}"""
+def _build_catchall_block() -> str | None:
+    """Build the on-demand TLS catch-all block from the configured upstream.
+
+    Returns None if no upstream is configured - in that case no catch-all
+    block is emitted and unregistered domains get a clean 404 from Caddy.
+    """
+    upstream = get_effective("catchall_upstream")
+    if not upstream:
+        return None
+    return (
+        "https:// {\n"
+        "    tls {\n"
+        "        on_demand\n"
+        "    }\n"
+        f"    reverse_proxy {upstream}\n"
+        "}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -163,9 +176,15 @@ async def enable_on_demand_tls() -> None:
         new_global = "{\n" + ON_DEMAND_TLS_DIRECTIVE + "\n}"
         content = new_global + "\n\n" + existing
 
-    content = content.strip() + "\n\n" + CATCHALL_BLOCK + "\n"
-    CADDYFILE_PATH.write_text(content)
-    logger.info("Enabled on-demand TLS (ask -> sentinel-api)")
+    content = content.strip()
+    catchall = _build_catchall_block()
+    if catchall:
+        content += "\n\n" + catchall
+    CADDYFILE_PATH.write_text(content + "\n")
+    logger.info(
+        "Enabled on-demand TLS (ask -> sentinel-api, catchall=%s)",
+        "yes" if catchall else "none",
+    )
 
 
 async def disable_on_demand_tls() -> None:
@@ -341,7 +360,8 @@ async def reload_caddy() -> dict[str, Any]:
         import docker
         client = docker.DockerClient.from_env()
         try:
-            container = client.containers.get("caddy-proxy")
+            container_name = get_effective("caddy_container") or "caddy-proxy"
+            container = client.containers.get(container_name)
             result = container.exec_run(
                 ["caddy", "reload", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"],
             )

@@ -1,0 +1,82 @@
+# =============================================================================
+# Sentinel - Self-host compose template
+#
+# Copy this file and the accompanying .env.example.selfhost to your server:
+#   curl -O https://raw.githubusercontent.com/getpayd-tech/payd-labs-sentinel-v1/main/deploy/docker-compose.selfhost.yml
+#   curl -O https://raw.githubusercontent.com/getpayd-tech/payd-labs-sentinel-v1/main/deploy/.env.example.selfhost
+#   mv .env.example.selfhost .env
+#   # Edit .env - set SENTINEL_URL, generate SECRET_KEY + ENCRYPTION_KEY
+#   docker network create proxy
+#   docker compose -f docker-compose.selfhost.yml up -d
+#
+# Then visit https://your-sentinel-url, log in with Payd Auth, and complete
+# the one-time setup wizard.
+# =============================================================================
+
+services:
+  sentinel-api:
+    image: ghcr.io/getpayd-tech/sentinel-api:latest
+    container_name: sentinel-api
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /apps:/apps:rw
+      - sentinel-data:/data
+      # Optional: mount fail2ban + auth log for the Security page.
+      # Comment these out if the host doesn't run fail2ban.
+      - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock
+      - /var/log/fail2ban.log:/var/log/fail2ban.log:ro
+      - /var/log/auth.log:/var/log/auth.log:ro
+    networks:
+      - proxy
+      - sentinel-internal
+    depends_on:
+      - sentinel-redis
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  sentinel-ui:
+    image: ghcr.io/getpayd-tech/sentinel-ui:latest
+    container_name: sentinel-ui
+    restart: unless-stopped
+    networks:
+      - proxy
+
+  sentinel-redis:
+    image: redis:7-alpine
+    container_name: sentinel-redis
+    restart: unless-stopped
+    volumes:
+      - sentinel-redis-data:/data
+    networks:
+      - sentinel-internal
+
+  caddy-proxy:
+    image: caddy:2-alpine
+    container_name: caddy-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /apps/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - proxy
+
+volumes:
+  sentinel-data:
+  sentinel-redis-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  proxy:
+    external: true
+  sentinel-internal:
+    driver: bridge

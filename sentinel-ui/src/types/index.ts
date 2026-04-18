@@ -479,3 +479,27 @@ export interface IpHistory {
   fail2ban_events: Fail2banEvent[]
   auth_events: AuthEvent[]
 }
+
+// ─── Setup wizard ───────────────────────────────────────────────────────────
+
+export interface SetupStatus {
+  setup_complete: boolean
+  sentinel_url: string
+  caddy_container: string
+  proxy_network: string
+  catchall_upstream: string
+  server_ip: string
+  allowed_usernames: string
+  ghcr_user: string
+}
+
+export interface SetupRequest {
+  sentinel_url: string
+  cors_origins?: string
+  caddy_container?: string
+  proxy_network?: string
+  catchall_upstream?: string
+  server_ip?: string
+  allowed_usernames?: string
+  ghcr_user?: string
+}

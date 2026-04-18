@@ -424,3 +424,58 @@ export interface CustomDomainList {
   items: CustomDomain[]
   total: number
 }
+
+// ─── Security (fail2ban + auth log) ─────────────────────────────────────────
+
+export interface JailStatus {
+  name: string
+  currently_failed: number
+  total_failed: number
+  currently_banned: number
+  total_banned: number
+  banned_ips: string[]
+}
+
+export interface JailList {
+  jails: string[]
+}
+
+export interface Fail2banEvent {
+  timestamp: string
+  level: string | null
+  jail: string | null
+  action: string | null
+  ip: string | null
+  message: string
+}
+
+export type AuthEventType = 'success' | 'failure' | 'info'
+
+export interface AuthEvent {
+  timestamp: string
+  event: AuthEventType
+  detail: string
+  user: string | null
+  ip: string | null
+  raw: string
+}
+
+export interface TopAttacker {
+  ip: string
+  failures: number
+}
+
+export interface AuthStats {
+  window_hours: number
+  successes: number
+  failures: number
+  info: number
+  unique_ips: number
+  top_attackers: TopAttacker[]
+}
+
+export interface IpHistory {
+  ip: string
+  fail2ban_events: Fail2banEvent[]
+  auth_events: AuthEvent[]
+}

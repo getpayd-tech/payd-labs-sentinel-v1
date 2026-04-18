@@ -84,3 +84,46 @@ class SentinelClient:
         resp = await self._http.get(f"/services/{name}/logs", params=params)
         resp.raise_for_status()
         return resp.json()
+
+    # -- Security / fail2ban --
+
+    async def list_jails(self) -> list[str]:
+        resp = await self._http.get("/security/jails")
+        resp.raise_for_status()
+        return resp.json().get("jails", [])
+
+    async def jail_status(self, jail: str) -> dict:
+        resp = await self._http.get(f"/security/jails/{jail}")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def ban_ip(self, jail: str, ip: str) -> None:
+        resp = await self._http.post(f"/security/jails/{jail}/ban", json={"ip": ip})
+        resp.raise_for_status()
+
+    async def unban_ip(self, jail: str, ip: str) -> None:
+        resp = await self._http.delete(f"/security/jails/{jail}/banned/{ip}")
+        resp.raise_for_status()
+
+    async def security_activity(self, limit: int = 100) -> list[dict]:
+        resp = await self._http.get("/security/activity", params={"limit": limit})
+        resp.raise_for_status()
+        return resp.json()
+
+    async def ip_history(self, ip: str) -> dict:
+        resp = await self._http.get(f"/security/ips/{ip}/history")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def auth_log(self, limit: int = 100, event_type: str | None = None) -> list[dict]:
+        params: dict = {"limit": limit}
+        if event_type:
+            params["event_type"] = event_type
+        resp = await self._http.get("/security/auth-log", params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def auth_stats(self, hours: int = 24) -> dict:
+        resp = await self._http.get("/security/auth-stats", params={"hours": hours})
+        resp.raise_for_status()
+        return resp.json()

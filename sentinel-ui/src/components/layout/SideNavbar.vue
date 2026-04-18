@@ -11,6 +11,7 @@ import {
   Activity,
   ClipboardList,
   BookOpen,
+  Shield,
 } from 'lucide-vue-next'
 
 const emit = defineEmits<{
@@ -31,6 +32,7 @@ const navItems = [
   { name: 'Logs', path: '/logs', icon: ScrollText },
   { name: 'System', path: '/system', icon: Activity },
   { name: 'Audit', path: '/audit', icon: ClipboardList },
+  { name: 'Security', path: '/security', icon: Shield },
   { name: 'Deploy Guide', path: '/docs', icon: BookOpen },
 ]
 

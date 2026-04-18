@@ -208,6 +208,149 @@ def logs(
     _run(_run_it())
 
 
+# ---------------------------------------------------------------------------
+# Security sub-app (fail2ban + auth log)
+# ---------------------------------------------------------------------------
+
+security_app = typer.Typer(help="Manage fail2ban bans and inspect SSH auth activity.")
+app.add_typer(security_app, name="security")
+
+
+@security_app.command("banned")
+def security_banned(
+    jail: str = typer.Option("sshd", "--jail", help="Jail name"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """List currently banned IPs in a jail."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            status = await c.jail_status(jail)
+            ips = status.get("banned_ips", [])
+            table = Table(title=f"Banned IPs - {jail}")
+            table.add_column("IP", style="bold")
+            for ip in ips:
+                table.add_row(ip)
+            console.print(table)
+            console.print(
+                f"[dim]{status.get('currently_banned', 0)} banned, "
+                f"{status.get('currently_failed', 0)} currently failing, "
+                f"{status.get('total_banned', 0)} total bans lifetime[/dim]"
+            )
+    _run(_run_it())
+
+
+@security_app.command("ban")
+def security_ban(
+    ip: str = typer.Argument(help="IP address to ban"),
+    jail: str = typer.Option("sshd", "--jail", help="Jail name"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Ban an IP address."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            try:
+                await c.ban_ip(jail, ip)
+                console.print(f"[green]Banned {ip} in {jail}[/green]")
+            except Exception as e:
+                console.print(f"[red]Failed to ban {ip}:[/red] {e}")
+                raise typer.Exit(1)
+    _run(_run_it())
+
+
+@security_app.command("unban")
+def security_unban(
+    ip: str = typer.Argument(help="IP address to unban"),
+    jail: str = typer.Option("sshd", "--jail", help="Jail name"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Unban an IP address."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            try:
+                await c.unban_ip(jail, ip)
+                console.print(f"[green]Unbanned {ip} from {jail}[/green]")
+            except Exception as e:
+                console.print(f"[red]Failed to unban {ip}:[/red] {e}")
+                raise typer.Exit(1)
+    _run(_run_it())
+
+
+@security_app.command("activity")
+def security_activity(
+    tail: int = typer.Option(50, "--tail", "-n"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Recent fail2ban log activity."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            events = await c.security_activity(limit=tail)
+            if not events:
+                console.print("[dim]No recent fail2ban activity.[/dim]")
+                return
+            for ev in events:
+                ts = ev.get("timestamp", "")
+                action = ev.get("action", "")
+                ip = ev.get("ip", "")
+                jail = ev.get("jail", "")
+                color = "red" if action == "Ban" else "green" if action == "Unban" else "yellow"
+                console.print(
+                    f"[dim]{ts}[/dim] [{color}]{action or '-':<7}[/{color}] "
+                    f"[cyan]{ip or '-':<18}[/cyan] [magenta]{jail or '-'}[/magenta]"
+                )
+    _run(_run_it())
+
+
+@security_app.command("ip")
+def security_ip(
+    ip: str = typer.Argument(help="IP address to look up"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Show full history for an IP (fail2ban + SSH auth)."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            hist = await c.ip_history(ip)
+            console.print(f"[bold]History for {ip}[/bold]")
+            console.print()
+            console.print(f"[cyan]fail2ban events ({len(hist.get('fail2ban_events', []))}):[/cyan]")
+            for ev in hist.get("fail2ban_events", [])[:30]:
+                action = ev.get("action") or "-"
+                console.print(f"  [dim]{ev.get('timestamp', '')}[/dim] {action:<7} jail={ev.get('jail') or '-'}")
+            console.print()
+            console.print(f"[cyan]SSH auth events ({len(hist.get('auth_events', []))}):[/cyan]")
+            for ev in hist.get("auth_events", [])[:30]:
+                color = "green" if ev.get("event") == "success" else "red" if ev.get("event") == "failure" else "yellow"
+                console.print(
+                    f"  [dim]{ev.get('timestamp', '')}[/dim] "
+                    f"[{color}]{ev.get('detail', '-'):<18}[/{color}] "
+                    f"user={ev.get('user') or '-'}"
+                )
+    _run(_run_it())
+
+
+@security_app.command("auth")
+def security_auth(
+    tail: int = typer.Option(50, "--tail", "-n"),
+    event_type: Optional[str] = typer.Option(None, "--type", help="success|failure|info"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Recent SSH auth events."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            events = await c.auth_log(limit=tail, event_type=event_type)
+            if not events:
+                console.print("[dim]No recent SSH auth events.[/dim]")
+                return
+            for ev in events:
+                color = "green" if ev.get("event") == "success" else "red" if ev.get("event") == "failure" else "yellow"
+                console.print(
+                    f"[dim]{ev.get('timestamp', '')}[/dim] "
+                    f"[{color}]{ev.get('detail', '-'):<18}[/{color}] "
+                    f"[cyan]{ev.get('ip') or '-':<18}[/cyan] "
+                    f"user={ev.get('user') or '-'}"
+                )
+    _run(_run_it())
+
+
 @app.command()
 def status(url: Optional[str] = typer.Option(None, "--url", hidden=True)) -> None:
     """Show each project with its latest deployment."""

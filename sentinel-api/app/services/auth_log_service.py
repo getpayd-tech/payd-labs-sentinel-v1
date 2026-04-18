@@ -18,7 +18,7 @@ import asyncio
 import logging
 import re
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -165,7 +165,7 @@ async def auth_stats(hours: int = 24) -> dict[str, Any]:
 
     Returns counts + top attacker IPs.
     """
-    cutoff = datetime.now() - timedelta(hours=hours)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     # Read a large tail (auth.log typically has tens of thousands of lines/day)
     raw = await asyncio.to_thread(_iter_log_lines, AUTH_LOG, 50000)
 
@@ -180,6 +180,9 @@ async def auth_stats(hours: int = 24) -> dict[str, Any]:
         if not ev:
             continue
         ts = datetime.fromisoformat(ev["timestamp"])
+        # Ensure aware datetime for comparison (traditional syslog format is naive)
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
         if ts < cutoff:
             continue
         if ev["ip"]:

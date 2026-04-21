@@ -40,6 +40,193 @@ class SentinelClient:
         available = ", ".join(p["name"] for p in projects)
         raise ValueError(f"Project '{name}' not found. Available: {available}")
 
+    async def get_project(self, project_id: str) -> dict:
+        resp = await self._http.get(f"/projects/{project_id}")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def create_project(self, payload: dict) -> dict:
+        resp = await self._http.post("/projects", json=payload)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def update_project(self, project_id: str, payload: dict) -> dict:
+        resp = await self._http.put(f"/projects/{project_id}", json=payload)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def delete_project(self, project_id: str) -> None:
+        resp = await self._http.delete(f"/projects/{project_id}")
+        resp.raise_for_status()
+
+    async def scan_projects(self) -> dict:
+        resp = await self._http.post("/projects/scan")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def provision_project(self, project_id: str, create_database: bool = False) -> dict:
+        resp = await self._http.post(
+            f"/projects/{project_id}/provision",
+            json={"create_database": create_database},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    async def run_wizard(self, payload: dict) -> dict:
+        """Run the full 9-step deploy wizard. Long-running (up to 5 min)."""
+        resp = await self._http.post(
+            "/projects/wizard",
+            json=payload,
+            timeout=httpx.Timeout(300.0),
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    async def wizard_preview(self, payload: dict) -> dict:
+        resp = await self._http.post("/projects/wizard/preview", json=payload)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def generate_service_key(self, project_id: str) -> dict:
+        resp = await self._http.post(f"/projects/{project_id}/generate-service-key")
+        resp.raise_for_status()
+        return resp.json()
+
+    # -- Env vars --
+
+    async def get_env(self, project_id: str, reveal: bool = False) -> list[dict]:
+        resp = await self._http.get(
+            f"/projects/{project_id}/env",
+            params={"reveal": str(reveal).lower()},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    async def set_env(self, project_id: str, variables: dict[str, str]) -> dict:
+        resp = await self._http.put(
+            f"/projects/{project_id}/env",
+            json={"variables": variables},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    # -- Databases --
+
+    async def list_databases(self) -> list[dict]:
+        resp = await self._http.get("/database/databases")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def create_database(self, name: str, password: str | None = None) -> dict:
+        body: dict = {"name": name}
+        if password:
+            body["password"] = password
+        resp = await self._http.post("/database/databases", json=body)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def list_tables(self, db: str) -> list[dict]:
+        resp = await self._http.get(f"/database/databases/{db}/tables")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def query(self, db: str, sql: str) -> dict:
+        resp = await self._http.post(
+            f"/database/databases/{db}/query",
+            json={"sql": sql},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    # -- Domains --
+
+    async def list_domains(self) -> list[dict]:
+        resp = await self._http.get("/domains")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def add_domain(
+        self,
+        domain: str,
+        upstream: str,
+        tls_mode: str = "auto",
+    ) -> dict:
+        host, _, port = upstream.partition(":")
+        port_num = int(port) if port else 80
+        resp = await self._http.post(
+            "/domains",
+            json={
+                "domain": domain,
+                "upstreams": [{"address": host, "port": port_num}],
+                "tls_mode": tls_mode,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    async def remove_domain(self, domain: str) -> None:
+        resp = await self._http.delete(f"/domains/{domain}")
+        resp.raise_for_status()
+
+    async def reload_caddy(self) -> dict:
+        resp = await self._http.post("/domains/reload")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def on_demand_tls_status(self) -> dict:
+        resp = await self._http.get("/domains/on-demand-tls")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def enable_on_demand_tls(self) -> dict:
+        resp = await self._http.post("/domains/on-demand-tls/enable")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def disable_on_demand_tls(self) -> dict:
+        resp = await self._http.post("/domains/on-demand-tls/disable")
+        resp.raise_for_status()
+        return resp.json()
+
+    # -- Custom domains (admin) --
+
+    async def list_custom_domains(self, project_id: str | None = None) -> dict:
+        params = {"project_id": project_id} if project_id else {}
+        resp = await self._http.get("/custom-domains/all", params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def admin_remove_custom_domain(self, domain: str) -> None:
+        resp = await self._http.delete(f"/custom-domains/admin/{domain}")
+        resp.raise_for_status()
+
+    # -- Service control --
+
+    async def restart_service(self, name: str) -> dict:
+        resp = await self._http.post(f"/services/{name}/restart")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def stop_service(self, name: str) -> dict:
+        resp = await self._http.post(f"/services/{name}/stop")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def start_service(self, name: str) -> dict:
+        resp = await self._http.post(f"/services/{name}/start")
+        resp.raise_for_status()
+        return resp.json()
+
+    # -- Audit --
+
+    async def audit_log(self, page: int = 1, per_page: int = 50, action: str | None = None) -> dict:
+        params: dict = {"page": page, "per_page": per_page}
+        if action:
+            params["action"] = action
+        resp = await self._http.get("/audit", params=params)
+        resp.raise_for_status()
+        return resp.json()
+
     # -- Deployments --
 
     async def list_deployments(

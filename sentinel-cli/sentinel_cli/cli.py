@@ -381,3 +381,650 @@ def status(url: Optional[str] = typer.Option(None, "--url", hidden=True)) -> Non
                     table.add_row(p["name"], p.get("domain") or "-", "-", "-", "-", "-")
             console.print(table)
     _run(_run_it())
+
+
+# ---------------------------------------------------------------------------
+# Project sub-app (create, show, update, delete, scan, provision)
+# ---------------------------------------------------------------------------
+
+project_app = typer.Typer(help="Create, inspect, and manage Sentinel projects.")
+app.add_typer(project_app, name="project")
+
+
+@project_app.command("create")
+def project_create(
+    name: str = typer.Argument(help="Project slug (lowercase, hyphens)"),
+    display_name: Optional[str] = typer.Option(None, "--display", help="Human-readable name"),
+    type: str = typer.Option("fastapi", "--type", "-t", help="fastapi|vue|blended|nuxt|laravel|custom"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d"),
+    github_repo: Optional[str] = typer.Option(None, "--repo", "-r", help="GitHub repo URL"),
+    ghcr_image: Optional[str] = typer.Option(None, "--image", help="GHCR image path"),
+    description: Optional[str] = typer.Option(None, "--description"),
+    compose_path: Optional[str] = typer.Option(None, "--compose-path", help="Override /apps/<name>"),
+    compose_file: Optional[str] = typer.Option(None, "--compose-file", help="e.g. docker-compose.prod.yml"),
+    health_endpoint: str = typer.Option("/health", "--health"),
+    database_name: Optional[str] = typer.Option(None, "--db"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Create a project record in Sentinel."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            payload: dict = {
+                "name": name,
+                "display_name": display_name or name.replace("-", " ").title(),
+                "project_type": type,
+                "health_endpoint": health_endpoint,
+            }
+            for k, v in {
+                "description": description,
+                "github_repo": github_repo,
+                "ghcr_image": ghcr_image,
+                "domain": domain,
+                "compose_path": compose_path,
+                "compose_file": compose_file,
+                "database_name": database_name,
+            }.items():
+                if v:
+                    payload[k] = v
+            try:
+                p = await c.create_project(payload)
+                console.print(f"[green]Created project[/green] [bold]{p['name']}[/bold] (id={p['id'][:8]})")
+                if p.get("webhook_secret"):
+                    console.print(f"  webhook_secret: [yellow]{p['webhook_secret']}[/yellow]")
+            except Exception as e:
+                console.print(f"[red]Failed:[/red] {e}")
+                raise typer.Exit(1)
+    _run(_run_it())
+
+
+@project_app.command("show")
+def project_show(
+    name: str = typer.Argument(),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Show project detail."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            pid = await c.get_project_id_by_name(name)
+            p = await c.get_project(pid)
+            for k in (
+                "name", "display_name", "description", "project_type", "status",
+                "domain", "github_repo", "ghcr_image", "compose_path", "compose_file",
+                "health_endpoint", "database_name", "webhook_secret",
+                "supports_custom_domains", "custom_domain_upstream", "service_api_key",
+            ):
+                val = p.get(k)
+                if val is not None and val != "":
+                    console.print(f"  [dim]{k:26}[/dim] {val}")
+            containers = p.get("container_names") or {}
+            if containers:
+                console.print(f"  [dim]{'containers':26}[/dim] {', '.join(containers.keys())}")
+    _run(_run_it())
+
+
+@project_app.command("update")
+def project_update(
+    name: str = typer.Argument(),
+    display_name: Optional[str] = typer.Option(None, "--display"),
+    type: Optional[str] = typer.Option(None, "--type", "-t"),
+    domain: Optional[str] = typer.Option(None, "--domain", "-d"),
+    github_repo: Optional[str] = typer.Option(None, "--repo", "-r"),
+    ghcr_image: Optional[str] = typer.Option(None, "--image"),
+    description: Optional[str] = typer.Option(None, "--description"),
+    compose_path: Optional[str] = typer.Option(None, "--compose-path"),
+    compose_file: Optional[str] = typer.Option(None, "--compose-file"),
+    health_endpoint: Optional[str] = typer.Option(None, "--health"),
+    database_name: Optional[str] = typer.Option(None, "--db"),
+    custom_domains: Optional[bool] = typer.Option(None, "--custom-domains/--no-custom-domains"),
+    custom_domain_upstream: Optional[str] = typer.Option(None, "--custom-upstream"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Update project fields. Only provided flags are sent."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            pid = await c.get_project_id_by_name(name)
+            patch: dict = {}
+            for cli_name, field in (
+                (display_name, "display_name"),
+                (type, "project_type"),
+                (domain, "domain"),
+                (github_repo, "github_repo"),
+                (ghcr_image, "ghcr_image"),
+                (description, "description"),
+                (compose_path, "compose_path"),
+                (compose_file, "compose_file"),
+                (health_endpoint, "health_endpoint"),
+                (database_name, "database_name"),
+                (custom_domain_upstream, "custom_domain_upstream"),
+            ):
+                if cli_name is not None:
+                    patch[field] = cli_name
+            if custom_domains is not None:
+                patch["supports_custom_domains"] = custom_domains
+            if not patch:
+                console.print("[yellow]No fields provided - use flags like --domain, --display, ...[/yellow]")
+                return
+            updated = await c.update_project(pid, patch)
+            console.print(f"[green]Updated[/green] {updated['name']} ({len(patch)} fields)")
+    _run(_run_it())
+
+
+@project_app.command("delete")
+def project_delete(
+    name: str = typer.Argument(),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Delete a project record from Sentinel. Does NOT remove server files or containers."""
+    if not yes:
+        if not typer.confirm(f"Delete project '{name}' from Sentinel?"):
+            raise typer.Abort()
+
+    async def _run_it():
+        async with _get_client(url) as c:
+            pid = await c.get_project_id_by_name(name)
+            await c.delete_project(pid)
+            console.print(f"[green]Deleted[/green] {name}")
+    _run(_run_it())
+
+
+@project_app.command("scan")
+def project_scan(url: Optional[str] = typer.Option(None, "--url", hidden=True)) -> None:
+    """Scan /apps/ for existing projects and register any new ones."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            result = await c.scan_projects()
+            count = result.get("total", 0)
+            console.print(f"[green]Scanned /apps - discovered {count} project(s)[/green]")
+            for p in result.get("discovered", []):
+                console.print(f"  {p.get('name')}")
+    _run(_run_it())
+
+
+@project_app.command("provision")
+def project_provision(
+    name: str = typer.Argument(),
+    create_database: bool = typer.Option(False, "--create-db", help="Also create PostgreSQL DB"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Provision server files (compose, .env, Caddy route) for an existing project record."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            pid = await c.get_project_id_by_name(name)
+            result = await c.provision_project(pid, create_database=create_database)
+            console.print(f"[green]Provisioned[/green] {name}")
+            for step in result.get("steps", []):
+                status = step.get("status", "unknown")
+                color = {"complete": "green", "error": "red", "skipped": "yellow"}.get(status, "dim")
+                console.print(f"  [{color}]{status:10}[/{color}] {step.get('name', '')}")
+    _run(_run_it())
+
+
+@project_app.command("service-key")
+def project_service_key(
+    name: str = typer.Argument(),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Generate a new service API key (for custom-domains API calls)."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            pid = await c.get_project_id_by_name(name)
+            result = await c.generate_service_key(pid)
+            key = result.get("service_api_key", "")
+            console.print(f"[green]Generated service key for {name}:[/green]")
+            console.print(f"  [yellow]{key}[/yellow]")
+            console.print("[dim]Add to X-Service-Key header for /api/v1/custom-domains calls.[/dim]")
+    _run(_run_it())
+
+
+# ---------------------------------------------------------------------------
+# Env sub-app
+# ---------------------------------------------------------------------------
+
+env_app = typer.Typer(help="Manage project environment variables.")
+app.add_typer(env_app, name="env")
+
+
+@env_app.command("list")
+def env_list(
+    project: str = typer.Argument(),
+    reveal: bool = typer.Option(False, "--reveal", help="Show unmasked values"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """List env vars for a project (values masked unless --reveal)."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            pid = await c.get_project_id_by_name(project)
+            vars_ = await c.get_env(pid, reveal=reveal)
+            if not vars_:
+                console.print("[dim]No env vars set.[/dim]")
+                return
+            for v in vars_:
+                console.print(f"  [cyan]{v['key']}[/cyan]={v['value']}")
+    _run(_run_it())
+
+
+@env_app.command("set")
+def env_set(
+    project: str = typer.Argument(),
+    pairs: list[str] = typer.Argument(help="KEY=VALUE ... (can pass multiple)"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Set one or more env vars. Merges with existing vars."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            pid = await c.get_project_id_by_name(project)
+            # Merge with existing so we don't clobber
+            existing = await c.get_env(pid, reveal=True)
+            merged = {v["key"]: v["value"] for v in existing}
+            for pair in pairs:
+                if "=" not in pair:
+                    console.print(f"[red]Invalid KEY=VALUE: {pair}[/red]")
+                    raise typer.Exit(1)
+                k, _, v = pair.partition("=")
+                merged[k.strip()] = v
+            result = await c.set_env(pid, merged)
+            console.print(f"[green]{result.get('detail', 'Env vars updated')}[/green]")
+    _run(_run_it())
+
+
+@env_app.command("unset")
+def env_unset(
+    project: str = typer.Argument(),
+    keys: list[str] = typer.Argument(help="One or more env var names to remove"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Remove one or more env vars."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            pid = await c.get_project_id_by_name(project)
+            existing = await c.get_env(pid, reveal=True)
+            merged = {v["key"]: v["value"] for v in existing if v["key"] not in keys}
+            result = await c.set_env(pid, merged)
+            console.print(f"[green]Removed {len(keys)} env var(s): {', '.join(keys)}[/green]")
+    _run(_run_it())
+
+
+# ---------------------------------------------------------------------------
+# Database sub-app
+# ---------------------------------------------------------------------------
+
+db_app = typer.Typer(help="Manage the external PostgreSQL instance (if configured).")
+app.add_typer(db_app, name="db")
+
+
+@db_app.command("list")
+def db_list(url: Optional[str] = typer.Option(None, "--url", hidden=True)) -> None:
+    """List databases on the managed PostgreSQL instance."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            dbs = await c.list_databases()
+            table = Table(title="Databases")
+            table.add_column("Name", style="bold")
+            table.add_column("Owner")
+            table.add_column("Size (MB)", justify="right")
+            table.add_column("Tables", justify="right")
+            for d in dbs:
+                table.add_row(
+                    d.get("name", ""),
+                    d.get("owner", ""),
+                    str(d.get("size_mb", 0)),
+                    str(d.get("tables_count", 0)),
+                )
+            console.print(table)
+    _run(_run_it())
+
+
+@db_app.command("create")
+def db_create(
+    name: str = typer.Argument(help="Database name (also used for the dedicated user)"),
+    password: Optional[str] = typer.Option(None, "--password", "-p", help="If omitted a random one is generated"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Create a new database + dedicated user."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            try:
+                result = await c.create_database(name, password=password)
+                console.print(f"[green]Created database {name} with owner {result.get('user', name)}[/green]")
+                if result.get("password"):
+                    console.print(f"  password: [yellow]{result['password']}[/yellow]  (save this)")
+            except Exception as e:
+                console.print(f"[red]Failed:[/red] {e}")
+                raise typer.Exit(1)
+    _run(_run_it())
+
+
+@db_app.command("tables")
+def db_tables(
+    db: str = typer.Argument(),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """List tables in a database."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            tables = await c.list_tables(db)
+            table = Table(title=f"Tables in {db}")
+            table.add_column("Schema")
+            table.add_column("Name", style="bold")
+            table.add_column("Rows", justify="right")
+            table.add_column("Size (KB)", justify="right")
+            for t in tables:
+                table.add_row(
+                    t.get("schema", "-"),
+                    t.get("name", ""),
+                    str(t.get("row_count", 0)),
+                    str(t.get("size_kb", 0)),
+                )
+            console.print(table)
+    _run(_run_it())
+
+
+@db_app.command("query")
+def db_query(
+    db: str = typer.Argument(),
+    sql: str = typer.Argument(help="SELECT statement only"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Run a read-only SELECT query."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            try:
+                result = await c.query(db, sql)
+            except Exception as e:
+                console.print(f"[red]Query failed:[/red] {e}")
+                raise typer.Exit(1)
+            rows = result.get("rows", [])
+            cols = result.get("columns", [])
+            if not rows:
+                console.print("[dim]0 rows.[/dim]")
+                return
+            table = Table()
+            for col in cols:
+                table.add_column(col, overflow="fold")
+            for row in rows[:100]:  # cap at 100 in the terminal
+                table.add_row(*[str(row.get(c, "")) for c in cols])
+            console.print(table)
+            console.print(f"[dim]{result.get('row_count', len(rows))} rows in {result.get('execution_time_ms', 0)}ms[/dim]")
+    _run(_run_it())
+
+
+# ---------------------------------------------------------------------------
+# Domain sub-app
+# ---------------------------------------------------------------------------
+
+domain_app = typer.Typer(help="Manage Caddy reverse-proxy domains.")
+app.add_typer(domain_app, name="domain")
+
+
+@domain_app.command("list")
+def domain_list(url: Optional[str] = typer.Option(None, "--url", hidden=True)) -> None:
+    """List Caddy domain blocks."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            domains = await c.list_domains()
+            table = Table(title="Domains")
+            table.add_column("Domain", style="bold")
+            table.add_column("Upstreams")
+            table.add_column("TLS Mode")
+            for d in domains:
+                upstreams = ", ".join(f"{u['address']}:{u['port']}" for u in d.get("upstreams", []))
+                table.add_row(d.get("domain", ""), upstreams, d.get("tls_mode", "auto"))
+            console.print(table)
+    _run(_run_it())
+
+
+@domain_app.command("add")
+def domain_add(
+    domain: str = typer.Argument(help="e.g. app.example.com"),
+    upstream: str = typer.Option(..., "--upstream", "-u", help="container:port"),
+    tls_mode: str = typer.Option("auto", "--tls", help="auto|cloudflare_dns|on_demand|off"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Add a domain to the Caddyfile."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            try:
+                result = await c.add_domain(domain, upstream, tls_mode=tls_mode)
+                console.print(f"[green]Added {domain} -> {upstream} ({tls_mode})[/green]")
+            except Exception as e:
+                console.print(f"[red]Failed:[/red] {e}")
+                raise typer.Exit(1)
+    _run(_run_it())
+
+
+@domain_app.command("remove")
+def domain_remove(
+    domain: str = typer.Argument(),
+    yes: bool = typer.Option(False, "--yes", "-y"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Remove a domain from the Caddyfile."""
+    if not yes and not typer.confirm(f"Remove domain '{domain}'?"):
+        raise typer.Abort()
+
+    async def _run_it():
+        async with _get_client(url) as c:
+            await c.remove_domain(domain)
+            console.print(f"[green]Removed {domain}[/green]")
+    _run(_run_it())
+
+
+@domain_app.command("reload")
+def domain_reload(url: Optional[str] = typer.Option(None, "--url", hidden=True)) -> None:
+    """Reload Caddy configuration."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            result = await c.reload_caddy()
+            ok = result.get("success", False)
+            color = "green" if ok else "red"
+            console.print(f"[{color}]Caddy reload: {result.get('message', 'unknown')}[/{color}]")
+    _run(_run_it())
+
+
+@domain_app.command("tls")
+def domain_tls(
+    action: str = typer.Argument(help="status | enable | disable"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Manage on-demand TLS."""
+    if action not in ("status", "enable", "disable"):
+        console.print(f"[red]Unknown action '{action}'. Use status|enable|disable.[/red]")
+        raise typer.Exit(1)
+
+    async def _run_it():
+        async with _get_client(url) as c:
+            if action == "status":
+                result = await c.on_demand_tls_status()
+            elif action == "enable":
+                result = await c.enable_on_demand_tls()
+            else:
+                result = await c.disable_on_demand_tls()
+            enabled = result.get("enabled", False)
+            color = "green" if enabled else "dim"
+            console.print(f"[{color}]on-demand TLS: {'enabled' if enabled else 'disabled'}[/{color}]")
+            if result.get("message"):
+                console.print(f"  {result['message']}")
+    _run(_run_it())
+
+
+# ---------------------------------------------------------------------------
+# Custom domain sub-app
+# ---------------------------------------------------------------------------
+
+cd_app = typer.Typer(help="Inspect and manage custom domains across all projects (admin).")
+app.add_typer(cd_app, name="custom-domain")
+
+
+@cd_app.command("list")
+def cd_list(
+    project: Optional[str] = typer.Option(None, "--project", "-p"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """List custom domains across all projects."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            pid = None
+            if project:
+                pid = await c.get_project_id_by_name(project)
+            data = await c.list_custom_domains(project_id=pid)
+            items = data.get("items", [])
+            table = Table(title="Custom Domains")
+            table.add_column("Domain", style="bold")
+            table.add_column("Project")
+            table.add_column("Status")
+            for d in items:
+                table.add_row(
+                    d.get("domain", ""),
+                    d.get("project_name", ""),
+                    d.get("status", ""),
+                )
+            console.print(table)
+    _run(_run_it())
+
+
+@cd_app.command("remove")
+def cd_remove(
+    domain: str = typer.Argument(),
+    yes: bool = typer.Option(False, "--yes", "-y"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Force-remove a custom domain (admin)."""
+    if not yes and not typer.confirm(f"Remove custom domain '{domain}'?"):
+        raise typer.Abort()
+
+    async def _run_it():
+        async with _get_client(url) as c:
+            await c.admin_remove_custom_domain(domain)
+            console.print(f"[green]Removed {domain}[/green]")
+    _run(_run_it())
+
+
+# ---------------------------------------------------------------------------
+# Service control top-level commands
+# ---------------------------------------------------------------------------
+
+@app.command()
+def restart(
+    name: str = typer.Argument(help="Container name"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Restart a container."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            await c.restart_service(name)
+            console.print(f"[green]Restarted {name}[/green]")
+    _run(_run_it())
+
+
+@app.command()
+def stop(
+    name: str = typer.Argument(help="Container name"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Stop a running container."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            await c.stop_service(name)
+            console.print(f"[yellow]Stopped {name}[/yellow]")
+    _run(_run_it())
+
+
+@app.command()
+def start(
+    name: str = typer.Argument(help="Container name"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Start a stopped container."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            await c.start_service(name)
+            console.print(f"[green]Started {name}[/green]")
+    _run(_run_it())
+
+
+# ---------------------------------------------------------------------------
+# Audit
+# ---------------------------------------------------------------------------
+
+@app.command()
+def audit(
+    action_filter: Optional[str] = typer.Option(None, "--action", help="Filter by action e.g. project.create"),
+    limit: int = typer.Option(30, "--limit", "-n"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """View recent audit log entries."""
+    async def _run_it():
+        async with _get_client(url) as c:
+            result = await c.audit_log(page=1, per_page=limit, action=action_filter)
+            items = result.get("items", [])
+            if not items:
+                console.print("[dim]No audit entries.[/dim]")
+                return
+            table = Table(title="Audit Log")
+            table.add_column("Time")
+            table.add_column("User")
+            table.add_column("Action")
+            table.add_column("Target")
+            for i in items:
+                table.add_row(
+                    i.get("timestamp", "")[:19],
+                    i.get("user") or "-",
+                    i.get("action", ""),
+                    i.get("target") or "-",
+                )
+            console.print(table)
+    _run(_run_it())
+
+
+# ---------------------------------------------------------------------------
+# Init - interactive wizard alias (minimal prompts, calls /projects/wizard)
+# ---------------------------------------------------------------------------
+
+@app.command()
+def init(url: Optional[str] = typer.Option(None, "--url", hidden=True)) -> None:
+    """Interactive deploy wizard (creates project + compose + Caddy + optional DB + optional first deploy)."""
+    from rich.prompt import Prompt, Confirm
+
+    async def _run_it():
+        console.print("[bold]Sentinel Deploy Wizard[/bold]")
+        name = Prompt.ask("Project slug (lowercase, hyphens)")
+        display_name = Prompt.ask("Display name", default=name.replace("-", " ").title())
+        project_type = Prompt.ask(
+            "Project type",
+            choices=["fastapi", "vue", "blended", "nuxt", "laravel", "custom"],
+            default="fastapi",
+        )
+        github_repo = Prompt.ask("GitHub repo URL (org/name or full URL)")
+        domain = Prompt.ask("Domain", default="")
+        tls_mode = Prompt.ask("TLS mode", choices=["auto", "cloudflare_dns", "off"], default="auto")
+        create_database = Confirm.ask("Create a PostgreSQL database?", default=False)
+        first_deploy = Confirm.ask("Run first deploy now? (images must be pushed to GHCR already)", default=False)
+        compose_filename = Prompt.ask("Compose filename", default="docker-compose.yml")
+
+        payload = {
+            "name": name,
+            "display_name": display_name,
+            "project_type": project_type,
+            "github_repo": github_repo,
+            "domain": domain or None,
+            "tls_mode": tls_mode,
+            "create_database": create_database,
+            "first_deploy": first_deploy,
+            "compose_filename": compose_filename,
+        }
+        console.print("[dim]Running wizard (this may take a minute)...[/dim]")
+        async with _get_client(url) as c:
+            try:
+                result = await c.run_wizard(payload)
+            except Exception as e:
+                console.print(f"[red]Wizard failed:[/red] {e}")
+                raise typer.Exit(1)
+            console.print(f"[green]Project created:[/green] id={result.get('project_id', '')[:8]}")
+            if result.get("webhook_secret"):
+                console.print(f"  webhook_secret: [yellow]{result['webhook_secret']}[/yellow]")
+            for step in result.get("steps", []):
+                status = step.get("status", "")
+                color = {"complete": "green", "error": "red", "skipped": "yellow"}.get(status, "dim")
+                console.print(f"  [{color}]{status:10}[/{color}] step {step.get('step', '?')}: {step.get('name', '')}")
+    _run(_run_it())

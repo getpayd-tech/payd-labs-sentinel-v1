@@ -102,13 +102,16 @@ async def _health_check(project: Project) -> bool:
 async def _ghcr_login(logs: list[str]) -> None:
     """Login to GHCR using configured credentials. Skips if not configured."""
     from app.config import settings
+    from app.services.instance_config import get_effective
     if not settings.ghcr_token:
         return
+
+    ghcr_user = get_effective("ghcr_user") or settings.ghcr_user
 
     logs.append("=== GHCR login ===")
     proc = await asyncio.create_subprocess_exec(
         "docker", "login", "ghcr.io",
-        "-u", settings.ghcr_user,
+        "-u", ghcr_user,
         "--password-stdin",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,

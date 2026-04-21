@@ -443,13 +443,15 @@ async def execute_wizard(
 
     # Step 7-9: First deploy (pull, start, health check)
     if first_deploy:
-        # GHCR login before pulling
+        # GHCR login before pulling - effective user (wizard wins over env)
         from app.config import settings as app_settings
+        from app.services.instance_config import get_effective
+        ghcr_user = get_effective("ghcr_user") or app_settings.ghcr_user
         if app_settings.ghcr_token:
             try:
                 login_proc = await asyncio.create_subprocess_exec(
                     "docker", "login", "ghcr.io",
-                    "-u", app_settings.ghcr_user, "--password-stdin",
+                    "-u", ghcr_user, "--password-stdin",
                     stdin=asyncio.subprocess.PIPE,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.STDOUT,

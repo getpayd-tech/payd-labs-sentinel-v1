@@ -52,12 +52,20 @@ async def require_admin(request: Request) -> dict:
     if not claims.get("is_admin", False):
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    # Username whitelist - if configured, only listed usernames may log in
-    from app.config import settings
-    allowed = settings.allowed_username_list
+    # Username whitelist - if configured, only listed usernames may log in.
+    # Reads the effective list (setup-wizard value wins over env var) so
+    # admins who add themselves via the UI wizard are picked up without a
+    # container restart.
+    from app.services.instance_config import get_effective_list
+    allowed = get_effective_list("allowed_usernames")
     if allowed:
         username = (claims.get("username") or "").lower()
         if username not in allowed:
+            logger.warning(
+                "Login rejected for %s - not in whitelist (allowed=%s)",
+                username or "(unknown)",
+                allowed,
+            )
             raise HTTPException(status_code=403, detail="Access denied. Your account is not whitelisted.")
 
     return claims

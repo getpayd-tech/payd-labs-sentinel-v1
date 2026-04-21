@@ -67,3 +67,13 @@ def get_effective(key: str) -> str:
         return str(cfg[key])
     # Fall back to the Pydantic setting
     return str(getattr(settings, key, "") or "")
+
+
+def get_effective_list(key: str) -> list[str]:
+    """Parse a comma-separated effective value into a lowercased list.
+
+    Used for allowed_usernames, cors_origins, etc. Returns an empty list
+    if neither wizard nor env has a value set.
+    """
+    raw = get_effective(key)
+    return [item.strip().lower() for item in raw.split(",") if item.strip()]

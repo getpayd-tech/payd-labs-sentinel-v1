@@ -148,10 +148,16 @@ async def me(x_auth_token: str = Header("")):
         if not is_admin:
             raise HTTPException(status_code=403, detail="Admin access required")
 
-        # Username whitelist check
+        # Username whitelist check - effective list (wizard wins over env)
+        from app.services.instance_config import get_effective_list
         username = claims.get("username", "").lower()
-        allowed = settings.allowed_username_list if hasattr(settings, 'allowed_username_list') else []
-        if allowed and username not in [u.lower() for u in allowed]:
+        allowed = get_effective_list("allowed_usernames")
+        if allowed and username not in allowed:
+            logger.warning(
+                "/me rejected for %s - not in whitelist (allowed=%s)",
+                username or "(unknown)",
+                allowed,
+            )
             raise HTTPException(status_code=403, detail="Access denied. Your account is not whitelisted.")
 
         # Fetch profile from Payd Auth (v3 endpoint with user_id)

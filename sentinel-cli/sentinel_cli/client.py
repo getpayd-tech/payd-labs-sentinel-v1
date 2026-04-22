@@ -92,6 +92,11 @@ class SentinelClient:
         resp.raise_for_status()
         return resp.json()
 
+    async def get_project_workflow(self, project_id: str) -> dict:
+        resp = await self._http.get(f"/projects/{project_id}/workflow")
+        resp.raise_for_status()
+        return resp.json()
+
     # -- Env vars --
 
     async def get_env(self, project_id: str, reveal: bool = False) -> list[dict]:

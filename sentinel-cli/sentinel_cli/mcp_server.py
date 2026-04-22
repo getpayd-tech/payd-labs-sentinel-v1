@@ -378,6 +378,39 @@ async def sentinel_provision_project(project: str, create_database: bool = False
 
 
 @mcp.tool()
+async def sentinel_get_workflow(project: str) -> str:
+    """Get the generated GitHub Actions deploy workflow YAML for a project.
+
+    Returns the content to write to .github/workflows/deploy.yml in the
+    project's git repo, plus the webhook_secret the agent should set as
+    a GitHub repo secret named SENTINEL_WEBHOOK_SECRET.
+    """
+    client = await _get_client()
+    if isinstance(client, str):
+        return client
+    async with client:
+        try:
+            pid = await client.get_project_id_by_name(project)
+            info = await client.get_project_workflow(pid)
+        except Exception as e:
+            return f"Failed: {e}"
+        return (
+            f"project: {info.get('project')}\n"
+            f"github_repo: {info.get('github_repo', '(not set on project)')}\n"
+            f"webhook_secret: {info.get('webhook_secret', '')}\n"
+            f"filename: .github/workflows/{info.get('filename', 'deploy.yml')}\n"
+            f"\n"
+            f"--- workflow YAML ---\n"
+            f"{info.get('workflow_yaml', '')}\n"
+            f"---\n"
+            f"\nNext steps:\n"
+            f"1. Write the YAML above to .github/workflows/deploy.yml in the repo\n"
+            f"2. Set GitHub secret: gh secret set SENTINEL_WEBHOOK_SECRET -R <owner/repo> --body '<webhook_secret>'\n"
+            f"3. Commit and push to trigger the first deploy"
+        )
+
+
+@mcp.tool()
 async def sentinel_generate_service_key(project: str) -> str:
     """Generate a new service API key for the project (for custom-domains API auth)."""
     client = await _get_client()

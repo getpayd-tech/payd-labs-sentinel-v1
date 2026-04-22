@@ -981,6 +981,284 @@ def audit(
 # Init - interactive wizard alias (minimal prompts, calls /projects/wizard)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Repo setup - write workflow + set GitHub secret (closes the repo-side gap)
+# ---------------------------------------------------------------------------
+
+repo_app = typer.Typer(help="Configure a git repo to deploy via Sentinel.")
+app.add_typer(repo_app, name="repo")
+
+
+def _run_local(cmd: list[str], cwd: str | None = None) -> tuple[int, str]:
+    """Run a local shell command and return (returncode, combined output)."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+        return result.returncode, (result.stdout or "") + (result.stderr or "")
+    except FileNotFoundError:
+        return 127, f"Command not found: {cmd[0]}"
+    except Exception as e:
+        return 1, str(e)
+
+
+def _detect_github_repo(repo_dir: str) -> str | None:
+    """Infer the owner/repo slug from git remote origin."""
+    import re
+    rc, out = _run_local(["git", "-C", repo_dir, "remote", "get-url", "origin"])
+    if rc != 0:
+        return None
+    url = out.strip()
+    # Match git@github.com:owner/repo.git or https://github.com/owner/repo(.git)
+    m = re.search(r"github\.com[:/]([^/]+/[^/]+?)(\.git)?$", url)
+    return m.group(1) if m else None
+
+
+@repo_app.command("setup")
+def repo_setup(
+    project: str = typer.Argument(help="Sentinel project name"),
+    repo_dir: str = typer.Option(".", "--dir", help="Path to the git repo (defaults to cwd)"),
+    github_repo: Optional[str] = typer.Option(None, "--repo", help="owner/name (inferred from git remote if omitted)"),
+    skip_secret: bool = typer.Option(False, "--no-secret", help="Skip setting GitHub secret"),
+    skip_commit: bool = typer.Option(False, "--no-commit", help="Write the file but do not commit + push"),
+    commit_message: str = typer.Option("ci: Sentinel webhook deploys", "--message", "-m"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """Write .github/workflows/deploy.yml + set SENTINEL_WEBHOOK_SECRET in the git repo.
+
+    Requires `git` and (unless --no-secret) `gh` CLI authed against GitHub.
+    """
+    import os
+    from pathlib import Path
+
+    async def _run_it():
+        async with _get_client(url) as c:
+            try:
+                pid = await c.get_project_id_by_name(project)
+                info = await c.get_project_workflow(pid)
+            except Exception as e:
+                console.print(f"[red]Failed to fetch workflow:[/red] {e}")
+                raise typer.Exit(1)
+            yaml = info.get("workflow_yaml", "")
+            secret = info.get("webhook_secret", "")
+            return yaml, secret
+
+        return "", ""
+
+    yaml, secret = _run(_run_it())
+
+    # Write workflow file
+    target_dir = os.path.abspath(repo_dir)
+    if not (Path(target_dir) / ".git").exists():
+        console.print(f"[red]{target_dir} is not a git repo[/red]")
+        raise typer.Exit(1)
+
+    wf_dir = Path(target_dir) / ".github" / "workflows"
+    wf_dir.mkdir(parents=True, exist_ok=True)
+    wf_path = wf_dir / "deploy.yml"
+    wf_path.write_text(yaml)
+    console.print(f"[green]Wrote[/green] {wf_path.relative_to(target_dir)} ({len(yaml)} bytes)")
+
+    # Set GitHub secret
+    if not skip_secret:
+        if not github_repo:
+            github_repo = _detect_github_repo(target_dir)
+        if not github_repo:
+            console.print("[yellow]Could not detect github repo - pass --repo owner/name or use --no-secret[/yellow]")
+        else:
+            rc, out = _run_local(
+                ["gh", "secret", "set", "SENTINEL_WEBHOOK_SECRET", "-R", github_repo, "--body", secret],
+            )
+            if rc == 0:
+                console.print(f"[green]Set SENTINEL_WEBHOOK_SECRET[/green] on {github_repo}")
+            else:
+                console.print(f"[red]gh secret set failed:[/red] {out.strip()}")
+                console.print("[dim]Tip: run `gh auth login` first, or use --no-secret and set it manually.[/dim]")
+
+    # Commit + push
+    if not skip_commit:
+        rc1, _ = _run_local(["git", "-C", target_dir, "add", str(wf_path.relative_to(target_dir))])
+        rc2, out2 = _run_local(["git", "-C", target_dir, "commit", "-m", commit_message])
+        if rc2 == 0:
+            console.print("[green]Committed[/green]")
+            rc3, out3 = _run_local(["git", "-C", target_dir, "push"])
+            if rc3 == 0:
+                console.print("[green]Pushed to remote[/green] - GitHub Actions will build + deploy")
+            else:
+                console.print(f"[yellow]Commit OK but push failed:[/yellow] {out3.strip()}")
+        elif "nothing to commit" in out2:
+            console.print("[dim]Nothing to commit - workflow already up to date.[/dim]")
+        else:
+            console.print(f"[yellow]Commit failed:[/yellow] {out2.strip()}")
+
+
+# ---------------------------------------------------------------------------
+# bootstrap - one-command end-to-end: project + env + db + domain + provision
+# + repo setup + deploy
+# ---------------------------------------------------------------------------
+
+@app.command()
+def bootstrap(
+    name: str = typer.Option(..., "--name", "-n", prompt=True, help="Project slug"),
+    type: str = typer.Option("fastapi", "--type", "-t", prompt=True),
+    domain: str = typer.Option(..., "--domain", "-d", prompt=True),
+    github_repo: str = typer.Option(..., "--repo", "-r", prompt=True, help="Full GitHub repo URL"),
+    ghcr_image: Optional[str] = typer.Option(None, "--image", help="Defaults to ghcr.io/<owner>/<name>"),
+    upstream: Optional[str] = typer.Option(None, "--upstream", help="Defaults to <name>:8000 for fastapi, <name>:80 for vue"),
+    create_db: bool = typer.Option(False, "--create-db"),
+    env: list[str] = typer.Option([], "--env", "-e", help="KEY=VALUE (repeatable)"),
+    repo_dir: str = typer.Option(".", "--dir", help="Local git repo path"),
+    deploy_now: bool = typer.Option(False, "--deploy", help="Trigger first deploy (images must already be on GHCR)"),
+    url: Optional[str] = typer.Option(None, "--url", hidden=True),
+) -> None:
+    """End-to-end project setup: Sentinel scaffolding + repo workflow + secret + optional deploy.
+
+    Example:
+
+        sentinel bootstrap --name my-app --type fastapi --domain my-app.paydlabs.com \\
+          --repo https://github.com/getpayd-tech/my-app --create-db \\
+          --env APP_ENV=production --env SECRET_KEY=xyz --deploy
+    """
+    import re
+
+    # Defaults
+    if not ghcr_image:
+        # Derive from github repo: https://github.com/owner/repo -> ghcr.io/owner/repo
+        m = re.search(r"github\.com[:/]([^/]+)/([^/.]+)", github_repo)
+        if m:
+            ghcr_image = f"ghcr.io/{m.group(1)}/{name}"
+    if not upstream:
+        port = 80 if type == "vue" else 8000
+        upstream = f"{name}:{port}"
+
+    env_dict: dict[str, str] = {}
+    for pair in env:
+        if "=" in pair:
+            k, _, v = pair.partition("=")
+            env_dict[k.strip()] = v
+
+    async def _run_it():
+        async with _get_client(url) as c:
+            # 1. Project
+            console.print("[bold cyan]1/7[/bold cyan] Creating project record...")
+            try:
+                p = await c.create_project({
+                    "name": name,
+                    "display_name": name.replace("-", " ").title(),
+                    "project_type": type,
+                    "github_repo": github_repo,
+                    "ghcr_image": ghcr_image,
+                    "domain": domain,
+                    "health_endpoint": "/health",
+                    **({"database_name": name.replace("-", "_")} if create_db else {}),
+                })
+                pid = p["id"]
+                console.print(f"    [green]project id={pid[:8]}[/green]")
+            except Exception as e:
+                console.print(f"    [red]failed: {e}[/red]")
+                raise typer.Exit(1)
+
+            # 2. Env vars
+            if env_dict:
+                console.print(f"[bold cyan]2/7[/bold cyan] Setting {len(env_dict)} env vars...")
+                await c.set_env(pid, env_dict)
+                console.print("    [green]ok[/green]")
+            else:
+                console.print("[bold cyan]2/7[/bold cyan] Skipping env vars (none provided)")
+
+            # 3. Database
+            if create_db:
+                console.print("[bold cyan]3/7[/bold cyan] Creating database...")
+                try:
+                    db_result = await c.create_database(name.replace("-", "_"))
+                    console.print(f"    [green]ok ({db_result.get('user', '')})[/green]")
+                except Exception as e:
+                    console.print(f"    [yellow]skipped: {e}[/yellow]")
+            else:
+                console.print("[bold cyan]3/7[/bold cyan] Skipping database (no --create-db)")
+
+            # 4. Domain
+            console.print(f"[bold cyan]4/7[/bold cyan] Adding Caddy domain {domain} -> {upstream}...")
+            try:
+                await c.add_domain(domain, upstream)
+                console.print("    [green]ok[/green]")
+            except Exception as e:
+                console.print(f"    [yellow]skipped: {e}[/yellow]")
+
+            # 5. Provision (compose + .env + caddy)
+            console.print("[bold cyan]5/7[/bold cyan] Provisioning server files...")
+            try:
+                result = await c.provision_project(pid, create_database=False)
+                for step in result.get("steps", []):
+                    if step.get("status") == "error":
+                        console.print(f"    [red]{step.get('name')}: error[/red]")
+            except Exception as e:
+                console.print(f"    [yellow]warning: {e}[/yellow]")
+            console.print("    [green]ok[/green]")
+
+            # 6. Fetch generated workflow + secret
+            console.print("[bold cyan]6/7[/bold cyan] Fetching generated workflow...")
+            info = await c.get_project_workflow(pid)
+            yaml = info.get("workflow_yaml", "")
+            secret = info.get("webhook_secret", "")
+            console.print("    [green]ok[/green]")
+
+            return pid, yaml, secret
+
+    pid, yaml, secret = _run(_run_it())
+
+    # 7. Repo setup (local git ops)
+    console.print("[bold cyan]7/7[/bold cyan] Writing workflow + setting GitHub secret in local repo...")
+    import os
+    from pathlib import Path
+
+    target_dir = os.path.abspath(repo_dir)
+    if not (Path(target_dir) / ".git").exists():
+        console.print(f"    [yellow]{target_dir} is not a git repo - skipping repo step[/yellow]")
+        console.print(f"    [dim]webhook_secret: {secret}[/dim]")
+    else:
+        wf_dir = Path(target_dir) / ".github" / "workflows"
+        wf_dir.mkdir(parents=True, exist_ok=True)
+        wf_path = wf_dir / "deploy.yml"
+        wf_path.write_text(yaml)
+        console.print(f"    [green]wrote {wf_path.relative_to(target_dir)}[/green]")
+
+        gh_repo = _detect_github_repo(target_dir)
+        if gh_repo:
+            rc, out = _run_local(["gh", "secret", "set", "SENTINEL_WEBHOOK_SECRET", "-R", gh_repo, "--body", secret])
+            if rc == 0:
+                console.print(f"    [green]set SENTINEL_WEBHOOK_SECRET on {gh_repo}[/green]")
+            else:
+                console.print(f"    [yellow]gh secret set failed: {out.strip()}[/yellow]")
+                console.print(f"    [dim]webhook_secret (set it manually): {secret}[/dim]")
+        else:
+            console.print(f"    [dim]webhook_secret (set it manually): {secret}[/dim]")
+
+    # Optional first deploy
+    if deploy_now:
+        console.print("[bold cyan]Deploying...[/bold cyan]")
+        async def _do_deploy():
+            async with _get_client(url) as c:
+                try:
+                    result = await c.deploy(pid)
+                    status = result.get("status", "unknown")
+                    color = "green" if status == "success" else "red"
+                    console.print(f"    [{color}]deploy: {status}[/{color}]")
+                except Exception as e:
+                    console.print(f"    [red]deploy failed: {e}[/red]")
+        _run(_do_deploy())
+
+    console.print()
+    console.print(f"[bold green]Bootstrap complete![/bold green] Project {name} is ready.")
+    console.print("[dim]Next: commit + push in your app repo to trigger first deploy (if --deploy not used).[/dim]")
+
+
 @app.command()
 def init(url: Optional[str] = typer.Option(None, "--url", hidden=True)) -> None:
     """Interactive deploy wizard (creates project + compose + Caddy + optional DB + optional first deploy)."""

@@ -241,6 +241,36 @@ async def get_project_detail(
     return _project_to_response(project)
 
 
+@router.get("/{project_id}/workflow")
+async def get_project_workflow(
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+    claims: dict = Depends(require_admin),
+):
+    """Return the generated GitHub Actions workflow YAML for this project.
+
+    Used by the CLI `sentinel repo setup` command to fetch the workflow
+    for committing into the project's git repo.
+    """
+    from app.services.wizard_service import generate_workflow
+    project = await get_project(db, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    yaml = generate_workflow(
+        name=project.name,
+        display_name=project.display_name,
+        project_type=project.project_type,
+        github_repo=project.github_repo or "",
+    )
+    return {
+        "project": project.name,
+        "webhook_secret": project.webhook_secret,
+        "github_repo": project.github_repo,
+        "workflow_yaml": yaml,
+        "filename": "deploy.yml",
+    }
+
+
 @router.put("/{project_id}", response_model=ProjectResponse)
 async def update_existing_project(
     project_id: str,

@@ -104,58 +104,76 @@ See the admin UI at **Custom Domains** in the sidebar, or the project detail pag
 
 ## CLI + MCP Server
 
-Sentinel ships a Python CLI and an MCP server for AI agent integration. Both live in `sentinel-cli/`.
+Sentinel ships a Python CLI and an MCP server for AI-agent integration. Both live in `sentinel-cli/` and are published to PyPI as `sentinel-cli`.
 
 ### Install
 
 ```bash
-# Clone the repo (or use an existing checkout)
-git clone git@github.com:getpayd-tech/payd-labs-sentinel-v1.git
-cd payd-labs-sentinel-v1
-
-# Create a venv and install
-python3.12 -m venv sentinel-cli/.venv
-source sentinel-cli/.venv/bin/activate
-pip install -e sentinel-cli/
+pip install sentinel-cli    # requires Python 3.12+
+sentinel login              # one-time OTP via Payd Auth
 ```
 
-### CLI usage
+### End-to-end deploy of a new service
+
+One command does everything (project + env + database + Caddy route + server provision + GitHub workflow commit + GitHub secret + first deploy):
 
 ```bash
-sentinel login                        # OTP auth, caches token at ~/.sentinel/
-sentinel projects                     # List all projects
-sentinel services                     # List all containers
-sentinel status                       # Projects + their last deploy
-sentinel deploy bradar                # Trigger deploy by project name
-sentinel deploy bradar --tag v1.2.3   # Deploy a specific image tag
-sentinel rollback bradar <deploy-id>  # Roll back to a previous deploy
-sentinel deployments --project bradar # Deployment history
-sentinel logs sentinel-api --tail 50  # Container logs
-sentinel logs bradar --since 1h       # Logs from the last hour
+cd my-app-repo    # a git repo with a Dockerfile
+sentinel bootstrap \
+  --name my-app --type fastapi --domain my-app.paydlabs.com \
+  --repo https://github.com/getpayd-tech/my-app \
+  --create-db \
+  --env APP_ENV=production \
+  --env SECRET_KEY="$(openssl rand -hex 32)" \
+  --deploy
 ```
 
-Auth: run `sentinel login` once (OTP flow, tokens cached with auto-refresh), or set `SENTINEL_TOKEN` env var with a valid JWT.
+Prerequisites: `git` + `gh` (authed). Without them, the CLI prints the webhook_secret for manual setup.
 
-Override the API URL: `SENTINEL_URL=http://localhost:8000 sentinel projects`
+### Daily ops
+
+```bash
+sentinel status                              # Dashboard: projects + last deploy
+sentinel deploy <project> [--tag sha]        # Trigger deploy
+sentinel rollback <project> <deploy-id>
+sentinel deployments [--project X]
+sentinel logs <container> [--tail N] [--since 1h]
+sentinel restart|stop|start <container>
+sentinel audit [--action X] [--limit N]
+```
+
+### Provisioning subcommands
+
+```bash
+sentinel project create|show|update|delete|scan|provision|service-key
+sentinel env list|set|unset <project> [KEY=VAL ...]
+sentinel db list|create|tables|query
+sentinel domain list|add|remove|reload|tls
+sentinel custom-domain list|remove
+sentinel security banned|ban|unban|activity|auth|ip
+sentinel repo setup <project>    # for existing projects without a workflow
+sentinel init                    # interactive wizard
+```
+
+Full command reference: [sentinel-cli/README.md](./sentinel-cli/README.md).
+
+Auth: `sentinel login` (cached at `~/.sentinel/`, auto-refreshed) or `SENTINEL_TOKEN` env var.
+
+Override API URL: `SENTINEL_URL=http://localhost:8000 sentinel ...`.
 
 ### MCP server for Claude Code
 
-After installing, add to your Claude Code settings:
+30 tools covering the full CLI surface. Add to `.claude/settings.json`:
 
 ```json
-// .claude/settings.json (project-level) or ~/.claude/settings.json (global)
 {
   "mcpServers": {
-    "sentinel": {
-      "command": "/path/to/payd-labs-sentinel-v1/sentinel-cli/.venv/bin/sentinel-mcp"
-    }
+    "sentinel": { "command": "sentinel-mcp" }
   }
 }
 ```
 
-The MCP server exposes 7 tools: `sentinel_list_projects`, `sentinel_list_services`, `sentinel_list_deployments`, `sentinel_deploy`, `sentinel_rollback`, `sentinel_get_logs`, `sentinel_project_status`.
-
-Auth: reads from `~/.sentinel/credentials.json` (run `sentinel login` first) or `SENTINEL_TOKEN` env var.
+Tools span project CRUD, deploys, env vars, databases, domains, services, audit, security. See [sentinel-cli/README.md](./sentinel-cli/README.md) for the full list.
 
 ---
 

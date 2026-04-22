@@ -486,50 +486,101 @@ The user creates an A record pointing their domain to `46.101.240.141`. Caddy pr
 
 ## Using the CLI
 
-Sentinel includes a terminal CLI for managing deployments without the web UI.
+The CLI covers the full deployment lifecycle - you can do everything in this guide from the terminal without opening the web UI.
 
 ### Install
 
 ```bash
-cd payd-labs-sentinel
-python3.12 -m venv sentinel-cli/.venv
-source sentinel-cli/.venv/bin/activate
-pip install -e sentinel-cli/
+pip install sentinel-cli    # Python 3.12+
+sentinel login              # OTP via Payd Auth, cached at ~/.sentinel/
 ```
 
-### First-time login
+Or set `SENTINEL_TOKEN` env var to skip the OTP flow.
+
+### Bootstrap a brand new service (one command)
 
 ```bash
-sentinel login
+cd my-app-repo    # git repo with a Dockerfile
+sentinel bootstrap \
+  --name my-app --type fastapi --domain my-app.paydlabs.com \
+  --repo https://github.com/getpayd-tech/my-app \
+  --create-db \
+  --env APP_ENV=production \
+  --env SECRET_KEY="$(openssl rand -hex 32)" \
+  --deploy
 ```
 
-Enter your Payd Auth username, password, and OTP code. The CLI caches tokens at `~/.sentinel/credentials.json` and auto-refreshes them. You can also skip the login flow by setting `SENTINEL_TOKEN` env var with a valid admin JWT.
+This runs all of the steps above as a single command:
+1. Creates the Sentinel project record
+2. Sets env vars
+3. Creates a managed PostgreSQL database + dedicated user
+4. Adds the Caddy domain route with TLS
+5. Provisions `/apps/my-app/` on the server (compose + .env)
+6. Writes `.github/workflows/deploy.yml` in the current repo
+7. Sets `SENTINEL_WEBHOOK_SECRET` on the GitHub repo via `gh` CLI
+8. Triggers the first deploy
 
-### Deploy from the terminal
+Prerequisites: `git` and `gh` (authed) on your local machine. Fall-back flags: `--no-secret`, `--no-commit`.
+
+### Daily operations
 
 ```bash
-sentinel deploy my-project          # Deploy latest
-sentinel deploy my-project --tag v2 # Deploy specific tag
-sentinel deployments -p my-project  # Check history
+sentinel status                           # All projects + last deploy
+sentinel deploy my-app                    # Redeploy
+sentinel deploy my-app --tag v1.2.3       # Specific tag
+sentinel rollback my-app <deploy-id>
+sentinel deployments --project my-app
 sentinel logs my-container --tail 50 --since 1h
-sentinel status                     # All projects + last deploy
+sentinel restart|stop|start my-container
+```
+
+### Provisioning subcommands
+
+If you prefer step-by-step over `bootstrap`:
+
+```bash
+sentinel project create my-app --type fastapi --domain my-app.paydlabs.com \
+  --repo https://github.com/getpayd-tech/my-app
+
+sentinel env set my-app DATABASE_URL="..." APP_ENV=production
+
+sentinel db create my_app
+
+sentinel domain add my-app.paydlabs.com --upstream my-app:8000
+
+sentinel project provision my-app
+
+sentinel repo setup my-app    # cd into app repo first
+
+sentinel deploy my-app
+```
+
+### Migrating an existing service to Sentinel
+
+If the service is already running but not yet configured in Sentinel:
+
+```bash
+sentinel project scan                  # Auto-discover /apps/ entries
+sentinel project show my-service       # Verify fields
+sentinel project update my-service --github-repo ... --ghcr-image ...
+sentinel repo setup my-service         # cd into its repo first
 ```
 
 ### MCP server for AI agents
 
-After installing the CLI package, configure Claude Code to use the MCP server:
+Add to `.claude/settings.json`:
 
 ```json
 {
   "mcpServers": {
-    "sentinel": {
-      "command": "/path/to/sentinel-cli/.venv/bin/sentinel-mcp"
-    }
+    "sentinel": { "command": "sentinel-mcp" }
   }
 }
 ```
 
-Agents can then call tools like `sentinel_deploy`, `sentinel_get_logs`, `sentinel_list_projects`, etc.
+30 tools exposed: project CRUD, deploys, env, database, domains, custom domains, services, audit, security. Agents can do full end-to-end provisioning (they can return the workflow YAML + webhook secret for the user to commit).
+
+Full command + tool reference: [sentinel-cli/README.md](./sentinel-cli/README.md).
 
 ---
 

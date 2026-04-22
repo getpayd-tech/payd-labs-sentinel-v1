@@ -114,8 +114,15 @@ Hit **Complete Setup**. You land on the dashboard.
 
 ## 7. Next steps
 
-- **Scan existing projects**: Projects > Scan Existing. If you have `/apps/<service>/` directories with compose files, Sentinel picks them up.
-- **Deploy a new project**: Projects > Deploy Wizard. Generates the compose file, Caddy route, and GitHub Actions workflow for a new service.
+- **Scan existing projects**: `sentinel project scan` or Projects > Scan Existing. Picks up any `/apps/<service>/` dirs with compose files.
+- **Deploy a new service end-to-end**: `pip install sentinel-cli` on your laptop, `sentinel login --url https://sentinel.myteam.com`, then from your app repo run:
+  ```bash
+  sentinel bootstrap --name my-service --type fastapi \
+    --domain my-service.myteam.com \
+    --repo https://github.com/yourorg/my-service \
+    --create-db --deploy
+  ```
+  This replaces the web wizard with one CLI command. Requires `git` + `gh` locally.
 - **Add fail2ban monitoring**: Security page works out of the box if `/var/run/fail2ban/fail2ban.sock` is mounted (the self-host compose does this). See the [Security docs](https://sentinel.paydlabs.com/public/docs/security) for details.
 
 ## Upgrading

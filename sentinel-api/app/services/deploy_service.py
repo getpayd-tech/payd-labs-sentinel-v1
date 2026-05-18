@@ -13,6 +13,7 @@ import hmac
 import logging
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Optional
 
 from sqlalchemy import select, func
@@ -20,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.deployment import Deployment
 from app.models.project import Project
+from app.services.image_utils import apply_image_tag, split_image_ref
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +127,88 @@ async def _ghcr_login(logs: list[str]) -> None:
         logs.append(f"GHCR login failed: {output}")
 
 
+def _resolve_compose_file(project: Project) -> Path | None:
+    """Locate the on-disk compose file Sentinel runs ``docker compose`` against.
+
+    Mirrors the directory/-f conventions used by ``trigger_deployment``.
+    Returns None if no compose file exists (caller logs + skips the rewrite;
+    Docker itself will then fail loudly at pull/up if it is truly missing).
+    """
+    compose_dir = Path(project.compose_path or f"/apps/{project.name}")
+    if project.compose_file:
+        cf = Path(project.compose_file)
+        path = cf if cf.is_absolute() else compose_dir / cf
+        return path if path.exists() else None
+    for name in ("docker-compose.yml", "docker-compose.yaml"):
+        path = compose_dir / name
+        if path.exists():
+            return path
+    return None
+
+
+async def _apply_requested_image(
+    project: Project,
+    image_tag: str,
+    all_logs: list[str],
+) -> tuple[str | None, str | None, str | None, str | None]:
+    """Rewrite the project's compose ``image:`` line(s) to ``<base>:<image_tag>``.
+
+    Returns ``(compose_path, original_text, previous_pin, new_pin)`` on a
+    successful rewrite, or ``(None, None, None, None)`` if no rewrite was
+    performed (a clear WARNING is appended to ``all_logs`` in that case).
+
+    Does NOT touch the DB and does NOT raise on missing-file / 0-match - the
+    caller decides what to do with the result.
+    """
+    # 1. Derive the base image (tag stripped). The base must come from the
+    #    pinned image, never the project name (e.g. pandastarz-email-worker's
+    #    image is the backend image).
+    if project.ghcr_image:
+        base, _ = split_image_ref(project.ghcr_image)
+    elif project.github_repo:
+        from app.services.wizard_service import _ghcr_image
+        base = _ghcr_image(project.github_repo)
+    else:
+        all_logs.append(
+            "WARNING: cannot determine base image (no ghcr_image / github_repo)"
+            " - skipping compose image rewrite; deploying the current pinned image"
+        )
+        return None, None, None, None
+
+    # 2. Locate the compose file.
+    path = _resolve_compose_file(project)
+    if path is None:
+        all_logs.append(
+            f"WARNING: compose file not found under "
+            f"{project.compose_path or f'/apps/{project.name}'} - skipping image rewrite"
+        )
+        return None, None, None, None
+
+    # 3. Rewrite matching image line(s).
+    original = path.read_text()
+    new_text, count = apply_image_tag(original, base, image_tag)
+
+    if count == 0:
+        all_logs.append(
+            f"WARNING: no image lines in {path.name} matched base '{base}' "
+            f"(matched 0) - NOT rewriting; deploying the current pinned image. "
+            f"Check project.ghcr_image."
+        )
+        return None, None, None, None
+
+    if project.project_type == "blended" and count < 2:
+        all_logs.append(
+            f"WARNING: blended project but only {count} image line(s) matched "
+            f"base '{base}' - the other service may be left on a stale image"
+        )
+
+    path.write_text(new_text)
+    all_logs.append(
+        f"Rewrote {count} image line(s) in {path.name} -> {base}:{image_tag}"
+    )
+    return str(path), original, project.ghcr_image, f"{base}:{image_tag}"
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -165,7 +249,26 @@ async def trigger_deployment(
         compose_prefix += ["-f", project.compose_file]
     all_logs: list[str] = []
 
+    # Bound before the try so the except can always reference them, even if
+    # _apply_requested_image raises (it does file I/O).
+    rewrote_path = backup_text = prev_pin = new_pin = None
+
     try:
+        # Apply the requested image tag to the on-disk compose file so the
+        # containers actually move to it. Keys off the raw function arg -
+        # deployment.image_tag is always truthy via `or "latest"`.
+        if image_tag:
+            rewrote_path, backup_text, prev_pin, new_pin = await _apply_requested_image(
+                project, image_tag, all_logs
+            )
+            if rewrote_path is not None:
+                project.ghcr_image = new_pin
+                await db.flush()
+                await db.refresh(project, ["updated_at"])  # MissingGreenlet guard
+                all_logs.append(f"Updated project pin: ghcr_image -> {new_pin}")
+        # No explicit tag -> intentionally no rewrite: restart on the current
+        # pinned image; never regress a SHA pin down to :latest.
+
         # GHCR login (ensures auth is fresh before pulling)
         await _ghcr_login(all_logs)
 
@@ -197,9 +300,26 @@ async def trigger_deployment(
         logger.error("Deployment failed for %s: %s", project.name, exc)
         all_logs.append(f"ERROR: {exc}")
 
-        # Attempt rollback
+        # True rollback: restore the original compose file + pin BEFORE the
+        # fallback `up -d` so it actually reverts the containers. Wrapped so a
+        # restore error can never block status="failed".
         try:
-            all_logs.append("=== rollback: docker compose up -d (previous) ===")
+            if rewrote_path is not None and backup_text is not None:
+                Path(rewrote_path).write_text(backup_text)
+                all_logs.append(f"Restored original compose file ({Path(rewrote_path).name})")
+            if prev_pin is not None:
+                project.ghcr_image = prev_pin
+                await db.flush()
+                await db.refresh(project, ["updated_at"])  # MissingGreenlet guard
+                all_logs.append(f"Reverted project pin: ghcr_image -> {prev_pin}")
+        except Exception as restore_exc:
+            all_logs.append(f"WARNING: failed to restore compose/pin: {restore_exc}")
+
+        # Fallback (now meaningful): re-pull + recreate on the previous image.
+        try:
+            all_logs.append("=== rollback: docker compose pull + up -d (previous) ===")
+            rc, output = await _run_command(compose_prefix + ["pull"], cwd=compose_dir)
+            all_logs.append(output)
             rc, output = await _run_command(compose_prefix + ["up", "-d"], cwd=compose_dir)
             all_logs.append(output)
         except Exception as rb_exc:
@@ -245,7 +365,22 @@ async def rollback_deployment(
         compose_prefix += ["-f", project.compose_file]
     all_logs: list[str] = [f"Rolling back to deployment {target_deployment.id} (tag: {target_deployment.image_tag})"]
 
+    # Bound before the try so the except can always reference them.
+    rewrote_path = backup_text = prev_pin = new_pin = None
+
     try:
+        # Move the on-disk compose file to the target deployment's image tag so
+        # the rollback actually changes the running containers.
+        if target_deployment.image_tag:
+            rewrote_path, backup_text, prev_pin, new_pin = await _apply_requested_image(
+                project, target_deployment.image_tag, all_logs
+            )
+            if rewrote_path is not None:
+                project.ghcr_image = new_pin
+                await db.flush()
+                await db.refresh(project, ["updated_at"])  # MissingGreenlet guard
+                all_logs.append(f"Updated project pin: ghcr_image -> {new_pin}")
+
         await _ghcr_login(all_logs)
 
         all_logs.append("=== docker compose pull ===")
@@ -264,6 +399,21 @@ async def rollback_deployment(
     except Exception as exc:
         logger.error("Rollback failed for %s: %s", project.name, exc)
         all_logs.append(f"ERROR: {exc}")
+
+        # Restore the original compose file + pin so a failed rollback leaves
+        # the project exactly as it was.
+        try:
+            if rewrote_path is not None and backup_text is not None:
+                Path(rewrote_path).write_text(backup_text)
+                all_logs.append(f"Restored original compose file ({Path(rewrote_path).name})")
+            if prev_pin is not None:
+                project.ghcr_image = prev_pin
+                await db.flush()
+                await db.refresh(project, ["updated_at"])  # MissingGreenlet guard
+                all_logs.append(f"Reverted project pin: ghcr_image -> {prev_pin}")
+        except Exception as restore_exc:
+            all_logs.append(f"WARNING: failed to restore compose/pin: {restore_exc}")
+
         deployment.status = "failed"
 
     elapsed = int(time.time() - start)

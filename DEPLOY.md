@@ -21,10 +21,11 @@ GitHub Actions                             Sentinel
 ─────────────                              ────────
 Build image → Push to GHCR
 POST /deployments/webhook  ──────────→     Verify HMAC signature
+                                           Rewrite compose image: → <tag>
                                            docker compose pull
                                            docker compose up -d
                                            Health check (60s retry)
-                                           If unhealthy → rollback
+                                           If unhealthy → restore + rollback
                                            Record deployment in DB
 ```
 
@@ -215,12 +216,19 @@ When Sentinel receives the webhook POST:
 1. **Verifies HMAC-SHA256 signature** - rejects if the secret doesn't match
 2. **Looks up the project** by name - rejects if not registered
 3. **Creates a deployment record** (status: `in_progress`)
-4. **Runs `docker compose pull`** in the project's `/apps/{name}/` directory
-5. **Runs `docker compose up -d`** to recreate containers with new images
-6. **Health check** - hits `https://{domain}{health_endpoint}` every 5 seconds for up to 60 seconds
-7. **If healthy** → deployment status set to `success`
-8. **If unhealthy** → automatic rollback (`docker compose up -d` with previous config), status set to `failed`
-9. **Records everything** - start time, end time, duration, full logs, who triggered it
+4. **Applies the requested `image_tag`** - rewrites the matching `image:` line(s) in the project's on-disk `docker-compose.yml` to `<base>:<image_tag>` (base derived from the project's pinned `ghcr_image`) and updates the stored pin. Single-service projects bump one line; blended projects bump both the `-api` and `-ui` images to the same tag. If the webhook carries no tag, the file is left as-is and the current pinned image is restarted (a SHA pin is never regressed to `:latest`).
+5. **Runs `docker compose pull`** in the project's `/apps/{name}/` directory
+6. **Runs `docker compose up -d`** to recreate containers with the new image
+7. **Health check** - hits `https://{domain}{health_endpoint}` every 5 seconds for up to 60 seconds
+8. **If healthy** → deployment status set to `success`
+9. **If unhealthy** → true rollback: the original compose file and pin are restored, then `docker compose pull` + `up -d` re-recreates containers on the previous image; status set to `failed`
+10. **Records everything** - start time, end time, duration, full logs (including the image-rewrite outcome), who triggered it
+
+> Because step 4 makes the deploy authoritative about the image tag, the old
+> manual workaround (`sentinel project update --image …` → `sentinel project
+> provision …` → `sentinel deploy …`) is no longer needed for routine deploys.
+> `sentinel project update --image` / `provision` are now only for setting a
+> project's initial `ghcr_image`.
 
 ---
 
@@ -412,6 +420,11 @@ After verifying the webhook deploy works (push a commit, check Sentinel → Depl
 ### `docker compose pull` fails
 - The GHCR images must be pushed before the webhook fires (build step must come before deploy step in the workflow)
 - Check that the image names in `docker-compose.yml` match what CI/CD pushes to GHCR
+
+### Deployment log warns "no image lines matched base '…' (matched 0)"
+- Sentinel could not find an `image:` line in the compose file whose name equals the project's `ghcr_image` base (or `<base>-api`/`<base>-ui`). It deployed the **current pinned image** instead of the requested tag.
+- Fix the project's pin so its base matches the compose image, e.g. `sentinel project update <name> --image ghcr.io/<org>/<repo>:<tag>` then re-deploy (a one-time correction; subsequent tagged deploys update the file automatically).
+- For blended projects a single match logs a warning that one service may be stale - verify both `-api` and `-ui` images.
 
 ### Health check fails
 - The health endpoint must respond with HTTP 2xx within 60 seconds of containers starting

@@ -24,6 +24,7 @@ from app.models.project import Project
 from app.services.image_utils import (
     apply_env_assignment,
     apply_image_tag,
+    compose_env_file_path,
     find_image_tag_env_vars,
     split_image_ref,
 )
@@ -197,17 +198,25 @@ async def _apply_requested_image(
     if count == 0:
         tag_env_vars = find_image_tag_env_vars(original)
         if tag_env_vars:
-            compose_dir = Path(project.compose_path or f"/apps/{project.name}")
-            env_path = compose_dir / ".env"
+            # Docker Compose resolves the implicit .env from the compose
+            # project directory. With `docker compose -f subdir/file.yml`,
+            # that is the compose file's directory, not necessarily
+            # project.compose_path.
+            env_path = compose_env_file_path(path)
             env_original = env_path.read_text() if env_path.exists() else ""
             env_text = env_original
             for key in tag_env_vars:
                 env_text, _ = apply_env_assignment(env_text, key, image_tag)
             env_path.parent.mkdir(parents=True, exist_ok=True)
             env_path.write_text(env_text)
+            display_path = env_path.name
+            try:
+                display_path = str(env_path.relative_to(Path(project.compose_path or f"/apps/{project.name}")))
+            except ValueError:
+                pass
             all_logs.append(
                 f"Updated compose tag env var(s) {', '.join(tag_env_vars)} "
-                f"in {env_path.name} -> {image_tag}"
+                f"in {display_path} -> {image_tag}"
             )
             return str(env_path), env_original, project.ghcr_image, project.ghcr_image, False
 
@@ -229,6 +238,28 @@ async def _apply_requested_image(
         f"Rewrote {count} image line(s) in {path.name} -> {base}:{image_tag}"
     )
     return str(path), original, project.ghcr_image, f"{base}:{image_tag}", True
+
+
+async def _assert_compose_references_tag(
+    compose_prefix: list[str],
+    compose_dir: str,
+    image_tag: str,
+    all_logs: list[str],
+) -> None:
+    """Fail a tagged deploy if rendered compose images never use the tag."""
+    rc, output = await _run_command(compose_prefix + ["config", "--images"], cwd=compose_dir)
+    all_logs.append("=== docker compose config --images ===")
+    all_logs.append(output)
+    if rc != 0:
+        raise RuntimeError(f"docker compose config --images failed (rc={rc})")
+
+    images = [line.strip() for line in output.splitlines() if line.strip()]
+    ghcr_images = [image for image in images if image.startswith("ghcr.io/")]
+    if ghcr_images and not any(f":{image_tag}" in image for image in ghcr_images):
+        raise RuntimeError(
+            "rendered compose images do not reference requested tag "
+            f"{image_tag}; refusing to deploy the currently pinned image set"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -295,6 +326,10 @@ async def trigger_deployment(
                 await db.flush()
                 await db.refresh(project, ["updated_at"])  # MissingGreenlet guard
                 all_logs.append(f"Updated project pin: ghcr_image -> {new_pin}")
+            if rewrote_path is not None:
+                await _assert_compose_references_tag(
+                    compose_prefix, compose_dir, image_tag, all_logs
+                )
         # No explicit tag -> intentionally no rewrite: restart on the current
         # pinned image; never regress a SHA pin down to :latest.
 
@@ -416,6 +451,13 @@ async def rollback_deployment(
                 await db.flush()
                 await db.refresh(project, ["updated_at"])  # MissingGreenlet guard
                 all_logs.append(f"Updated project pin: ghcr_image -> {new_pin}")
+            if rewrote_path is not None:
+                await _assert_compose_references_tag(
+                    compose_prefix,
+                    compose_dir,
+                    target_deployment.image_tag,
+                    all_logs,
+                )
 
         await _ghcr_login(all_logs)
 

@@ -6,12 +6,14 @@ Runnable two ways:
 """
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.services.image_utils import (  # noqa: E402
     apply_env_assignment,
     apply_image_tag,
+    compose_env_file_path,
     find_image_tag_env_vars,
     split_image_ref,
 )
@@ -251,6 +253,12 @@ def test_apply_env_assignment_preserves_crlf():
     out, count = apply_env_assignment(text, "CONNECT_IMAGE_TAG", "new")
     assert count == 1
     assert out == "OTHER=value\r\nCONNECT_IMAGE_TAG=new\r\n"
+
+
+def test_compose_env_file_path_uses_compose_file_directory():
+    assert compose_env_file_path(
+        Path("/apps/connect/deploy/sentinel/docker-compose.yml")
+    ) == Path("/apps/connect/deploy/sentinel/.env")
 
 
 # ---------------------------------------------------------------------------

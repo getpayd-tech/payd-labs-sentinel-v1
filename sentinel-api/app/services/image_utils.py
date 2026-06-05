@@ -8,6 +8,7 @@ containers to the requested tag (instead of re-pulling the old pinned image).
 """
 from __future__ import annotations
 
+from pathlib import Path
 import re
 
 # image:  <optional-quote> <ref> <optional-quote>  <optional trailing comment>
@@ -157,3 +158,8 @@ def apply_env_assignment(env_text: str, key: str, value: str) -> tuple[str, int]
     if prefix and not prefix.endswith(("\n", "\r")):
         prefix += "\n"
     return f"{prefix}{key}={value}\n", 1
+
+
+def compose_env_file_path(compose_file_path: str | Path) -> Path:
+    """Return the implicit dotenv file Docker Compose reads for a compose file."""
+    return Path(compose_file_path).parent / ".env"

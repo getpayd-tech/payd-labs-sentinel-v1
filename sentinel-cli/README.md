@@ -49,7 +49,7 @@ single-container and blended projects, where the project `ghcr_image` maps to
 one image or the generated `-api` and `-ui` images. For parameterized custom
 multi-image compose stacks, put a shared `*IMAGE_TAG` variable in the compose
 `image:` lines, for example `CONNECT_IMAGE_TAG`; Sentinel updates that variable
-in the project `.env` before `docker compose pull`.
+in the compose file directory's `.env` before `docker compose pull`.
 
 ### Projects
 

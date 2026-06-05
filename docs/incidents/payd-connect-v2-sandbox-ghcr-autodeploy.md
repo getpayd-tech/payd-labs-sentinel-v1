@@ -138,7 +138,7 @@ The Connect sandbox is a custom compose stack with many images and a shared
 `image:` lines derived from one `project.ghcr_image` base, plus the generated
 `-api` and `-ui` variants. For parameterized custom compose files, Sentinel also
 supports `*IMAGE_TAG` variables referenced from compose `image:` lines and
-updates those variables in the project `.env` before pulling.
+updates those variables in the compose file directory's `.env` before pulling.
 
 The remaining follow-up is to make project ownership more explicit for custom
 stacks that do not use a shared tag variable. The tracking issue is

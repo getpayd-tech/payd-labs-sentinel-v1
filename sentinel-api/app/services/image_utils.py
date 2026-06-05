@@ -17,6 +17,9 @@ _IMAGE_LINE_RE = re.compile(
     r"(?P<quote>['\"]?)(?P<ref>[^'\"\s#]+)(?P=quote)"
     r"(?P<trailing>[ \t]*(?:#.*)?)$"
 )
+_IMAGE_TAG_ENV_RE = re.compile(
+    r"\$\{(?P<name>[A-Za-z_][A-Za-z0-9_]*IMAGE_TAG)(?::-[^}]*)?\}"
+)
 
 # Digest-pinned references (``name@sha256:...``) are immutable by policy and
 # are never rewritten.
@@ -99,3 +102,58 @@ def apply_image_tag(compose_text: str, base_image: str, new_tag: str) -> tuple[s
         count += 1
 
     return "".join(out), count
+
+
+def find_image_tag_env_vars(compose_text: str) -> list[str]:
+    """Return tag env vars used by compose ``image:`` lines, in first-seen order.
+
+    Custom multi-image compose stacks often express images as:
+
+    ``image: ghcr.io/org/${IMAGE_PREFIX}-api:${IMAGE_TAG:-latest}``
+
+    Those lines cannot be rewritten by ``apply_image_tag`` because the concrete
+    image ref is resolved by Docker Compose. Sentinel can still apply the
+    requested deployment tag by updating the referenced ``*IMAGE_TAG`` variable
+    in the compose working directory's ``.env`` file.
+    """
+    seen: set[str] = set()
+    names: list[str] = []
+
+    for raw_line in compose_text.splitlines():
+        if not raw_line.lstrip().startswith("image:"):
+            continue
+        for match in _IMAGE_TAG_ENV_RE.finditer(raw_line):
+            name = match.group("name")
+            if name in seen:
+                continue
+            seen.add(name)
+            names.append(name)
+
+    return names
+
+
+def apply_env_assignment(env_text: str, key: str, value: str) -> tuple[str, int]:
+    """Set one ``KEY=value`` assignment in dotenv text, appending if absent.
+
+    Comments, unrelated lines, line endings, and missing final newlines are
+    preserved. The returned count is ``1`` when the key was written.
+    """
+    out: list[str] = []
+    updated = False
+
+    for raw_line in env_text.splitlines(keepends=True):
+        content = raw_line.splitlines()[0] if raw_line else raw_line
+        eol = raw_line[len(content):]
+        if content.startswith(f"{key}="):
+            out.append(f"{key}={value}{eol}")
+            updated = True
+            continue
+        out.append(raw_line)
+
+    if updated:
+        return "".join(out), 1
+
+    prefix = "".join(out)
+    if prefix and not prefix.endswith(("\n", "\r")):
+        prefix += "\n"
+    return f"{prefix}{key}={value}\n", 1

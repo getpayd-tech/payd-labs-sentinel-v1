@@ -46,9 +46,10 @@ sentinel audit [--action X] [--limit 30]
 
 `sentinel deploy <project> --tag <sha>` is authoritative for Sentinel-generated
 single-container and blended projects, where the project `ghcr_image` maps to
-one image or the generated `-api` and `-ui` images. For custom multi-image
-compose stacks, confirm the compose file has an explicit shared tag strategy or
-that every intended image is rewritten before relying on a manual tagged deploy.
+one image or the generated `-api` and `-ui` images. For parameterized custom
+multi-image compose stacks, put a shared `*IMAGE_TAG` variable in the compose
+`image:` lines, for example `CONNECT_IMAGE_TAG`; Sentinel updates that variable
+in the project `.env` before `docker compose pull`.
 
 ### Projects
 

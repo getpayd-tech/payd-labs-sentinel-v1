@@ -207,6 +207,31 @@ Push a commit to `main`. GitHub Actions will:
 
 Track it in Sentinel at **Deployments** - you'll see the status, duration, logs, and who triggered it.
 
+### GHCR package access checks
+
+If a workflow logs in to GHCR successfully but `docker/build-push-action` fails
+with `403 Forbidden`, inspect package ownership before changing Sentinel. The
+repository token can create and push packages linked to the workflow repository,
+but it cannot update a private package that is not linked to that repository or
+not granted Actions access.
+
+Check package metadata from a machine with GitHub org/package visibility:
+
+```bash
+gh api /orgs/getpayd-tech/packages/container/MY-PACKAGE \
+  --jq '{name, visibility, repository: .repository.full_name}'
+```
+
+Expected for a package managed by this workflow:
+
+```json
+{"name":"MY-PACKAGE","visibility":"private","repository":"getpayd-tech/MY-REPO"}
+```
+
+If `repository` is `null`, link the package to the workflow repository and add
+that repository under the package's Actions access with write permission. Then
+rerun the workflow from the branch or SHA that should be deployed.
+
 ---
 
 ## What Sentinel Does on Webhook
@@ -229,6 +254,13 @@ When Sentinel receives the webhook POST:
 > provision …` → `sentinel deploy …`) is no longer needed for routine deploys.
 > `sentinel project update --image` / `provision` are now only for setting a
 > project's initial `ghcr_image`.
+
+> Custom compose note: Sentinel's tagged deploy path rewrites image lines derived
+> from the single project `ghcr_image` base, plus the generated `-api` and `-ui`
+> variants. Generated single-service and blended stacks are covered by this
+> model. Custom multi-image compose files need an explicit tag strategy, such as
+> a shared env var consumed by the compose file, or a Sentinel enhancement that
+> validates and rewrites all intended images before `docker compose pull`.
 
 ---
 

@@ -44,6 +44,12 @@ sentinel restart|stop|start <container>
 sentinel audit [--action X] [--limit 30]
 ```
 
+`sentinel deploy <project> --tag <sha>` is authoritative for Sentinel-generated
+single-container and blended projects, where the project `ghcr_image` maps to
+one image or the generated `-api` and `-ui` images. For custom multi-image
+compose stacks, confirm the compose file has an explicit shared tag strategy or
+that every intended image is rewritten before relying on a manual tagged deploy.
+
 ### Projects
 
 ```bash

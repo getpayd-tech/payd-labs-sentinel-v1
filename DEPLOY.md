@@ -241,13 +241,14 @@ When Sentinel receives the webhook POST:
 1. **Verifies HMAC-SHA256 signature** - rejects if the secret doesn't match
 2. **Looks up the project** by name - rejects if not registered
 3. **Creates a deployment record** (status: `in_progress`)
-4. **Applies the requested `image_tag`** - rewrites the matching `image:` line(s) in the project's on-disk `docker-compose.yml` to `<base>:<image_tag>` (base derived from the project's pinned `ghcr_image`) and updates the stored pin. Single-service projects bump one line; blended projects bump both the `-api` and `-ui` images to the same tag. If no concrete image lines match but compose `image:` lines use one or more `*IMAGE_TAG` variables, Sentinel updates those variables in the project's `.env` before pulling. If the webhook carries no tag, the file is left as-is and the current pinned image is restarted (a SHA pin is never regressed to `:latest`).
-5. **Runs `docker compose pull`** in the project's `/apps/{name}/` directory
-6. **Runs `docker compose up -d`** to recreate containers with the new image
-7. **Health check** - hits `https://{domain}{health_endpoint}` every 5 seconds for up to 60 seconds
-8. **If healthy** → deployment status set to `success`
-9. **If unhealthy** → true rollback: the original compose file and pin are restored, then `docker compose pull` + `up -d` re-recreates containers on the previous image; status set to `failed`
-10. **Records everything** - start time, end time, duration, full logs (including the image-rewrite outcome), who triggered it
+4. **Applies the requested `image_tag`** - rewrites the matching `image:` line(s) in the project's on-disk `docker-compose.yml` to `<base>:<image_tag>` (base derived from the project's pinned `ghcr_image`) and updates the stored pin. Single-service projects bump one line; blended projects bump both the `-api` and `-ui` images to the same tag. If no concrete image lines match but compose `image:` lines use one or more `*IMAGE_TAG` variables, Sentinel updates those variables in the compose file directory's `.env` before pulling. If the webhook carries no tag, the file is left as-is and the current pinned image is restarted (a SHA pin is never regressed to `:latest`).
+5. **Verifies the rendered compose images** - for tagged deploys, `docker compose config --images` must reference the requested tag before Sentinel pulls.
+6. **Runs `docker compose pull`** in the project's `/apps/{name}/` directory
+7. **Runs `docker compose up -d`** to recreate containers with the new image
+8. **Health check** - hits `https://{domain}{health_endpoint}` every 5 seconds for up to 60 seconds
+9. **If healthy** → deployment status set to `success`
+10. **If unhealthy** → true rollback: the original compose file and pin are restored, then `docker compose pull` + `up -d` re-recreates containers on the previous image; status set to `failed`
+11. **Records everything** - start time, end time, duration, full logs (including the image-rewrite outcome), who triggered it
 
 > Because step 4 makes the deploy authoritative about the image tag, the old
 > manual workaround (`sentinel project update --image …` → `sentinel project
@@ -261,7 +262,7 @@ When Sentinel receives the webhook POST:
 > model. Parameterized custom multi-image stacks are supported when their
 > compose `image:` lines use an explicit shared tag variable such as
 > `CONNECT_IMAGE_TAG`; Sentinel updates the referenced `*IMAGE_TAG` variable(s)
-> in the project `.env` before `docker compose pull`.
+> in the compose file directory's `.env` before `docker compose pull`.
 
 ---
 

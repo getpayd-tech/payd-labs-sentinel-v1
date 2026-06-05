@@ -21,7 +21,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.deployment import Deployment
 from app.models.project import Project
-from app.services.image_utils import apply_image_tag, split_image_ref
+from app.services.image_utils import (
+    apply_env_assignment,
+    apply_image_tag,
+    find_image_tag_env_vars,
+    split_image_ref,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -150,12 +155,13 @@ async def _apply_requested_image(
     project: Project,
     image_tag: str,
     all_logs: list[str],
-) -> tuple[str | None, str | None, str | None, str | None]:
-    """Rewrite the project's compose ``image:`` line(s) to ``<base>:<image_tag>``.
+) -> tuple[str | None, str | None, str | None, str | None, bool]:
+    """Apply a requested image tag to the project's compose deployment inputs.
 
-    Returns ``(compose_path, original_text, previous_pin, new_pin)`` on a
-    successful rewrite, or ``(None, None, None, None)`` if no rewrite was
-    performed (a clear WARNING is appended to ``all_logs`` in that case).
+    Returns ``(path, original_text, previous_pin, new_pin, pin_changed)`` on a
+    successful compose or env rewrite, or ``(None, None, None, None, False)``
+    if no rewrite was performed (a clear WARNING is appended to ``all_logs`` in
+    that case).
 
     Does NOT touch the DB and does NOT raise on missing-file / 0-match - the
     caller decides what to do with the result.
@@ -173,7 +179,7 @@ async def _apply_requested_image(
             "WARNING: cannot determine base image (no ghcr_image / github_repo)"
             " - skipping compose image rewrite; deploying the current pinned image"
         )
-        return None, None, None, None
+        return None, None, None, None, False
 
     # 2. Locate the compose file.
     path = _resolve_compose_file(project)
@@ -182,19 +188,35 @@ async def _apply_requested_image(
             f"WARNING: compose file not found under "
             f"{project.compose_path or f'/apps/{project.name}'} - skipping image rewrite"
         )
-        return None, None, None, None
+        return None, None, None, None, False
 
     # 3. Rewrite matching image line(s).
     original = path.read_text()
     new_text, count = apply_image_tag(original, base, image_tag)
 
     if count == 0:
+        tag_env_vars = find_image_tag_env_vars(original)
+        if tag_env_vars:
+            compose_dir = Path(project.compose_path or f"/apps/{project.name}")
+            env_path = compose_dir / ".env"
+            env_original = env_path.read_text() if env_path.exists() else ""
+            env_text = env_original
+            for key in tag_env_vars:
+                env_text, _ = apply_env_assignment(env_text, key, image_tag)
+            env_path.parent.mkdir(parents=True, exist_ok=True)
+            env_path.write_text(env_text)
+            all_logs.append(
+                f"Updated compose tag env var(s) {', '.join(tag_env_vars)} "
+                f"in {env_path.name} -> {image_tag}"
+            )
+            return str(env_path), env_original, project.ghcr_image, project.ghcr_image, False
+
         all_logs.append(
             f"WARNING: no image lines in {path.name} matched base '{base}' "
             f"(matched 0) - NOT rewriting; deploying the current pinned image. "
-            f"Check project.ghcr_image."
+            f"Check project.ghcr_image or configure a compose *IMAGE_TAG env var."
         )
-        return None, None, None, None
+        return None, None, None, None, False
 
     if project.project_type == "blended" and count < 2:
         all_logs.append(
@@ -206,7 +228,7 @@ async def _apply_requested_image(
     all_logs.append(
         f"Rewrote {count} image line(s) in {path.name} -> {base}:{image_tag}"
     )
-    return str(path), original, project.ghcr_image, f"{base}:{image_tag}"
+    return str(path), original, project.ghcr_image, f"{base}:{image_tag}", True
 
 
 # ---------------------------------------------------------------------------
@@ -252,16 +274,23 @@ async def trigger_deployment(
     # Bound before the try so the except can always reference them, even if
     # _apply_requested_image raises (it does file I/O).
     rewrote_path = backup_text = prev_pin = new_pin = None
+    pin_changed = False
 
     try:
         # Apply the requested image tag to the on-disk compose file so the
         # containers actually move to it. Keys off the raw function arg -
         # deployment.image_tag is always truthy via `or "latest"`.
         if image_tag:
-            rewrote_path, backup_text, prev_pin, new_pin = await _apply_requested_image(
+            (
+                rewrote_path,
+                backup_text,
+                prev_pin,
+                new_pin,
+                pin_changed,
+            ) = await _apply_requested_image(
                 project, image_tag, all_logs
             )
-            if rewrote_path is not None:
+            if rewrote_path is not None and pin_changed:
                 project.ghcr_image = new_pin
                 await db.flush()
                 await db.refresh(project, ["updated_at"])  # MissingGreenlet guard
@@ -307,7 +336,7 @@ async def trigger_deployment(
             if rewrote_path is not None and backup_text is not None:
                 Path(rewrote_path).write_text(backup_text)
                 all_logs.append(f"Restored original compose file ({Path(rewrote_path).name})")
-            if prev_pin is not None:
+            if pin_changed and prev_pin is not None:
                 project.ghcr_image = prev_pin
                 await db.flush()
                 await db.refresh(project, ["updated_at"])  # MissingGreenlet guard
@@ -367,15 +396,22 @@ async def rollback_deployment(
 
     # Bound before the try so the except can always reference them.
     rewrote_path = backup_text = prev_pin = new_pin = None
+    pin_changed = False
 
     try:
         # Move the on-disk compose file to the target deployment's image tag so
         # the rollback actually changes the running containers.
         if target_deployment.image_tag:
-            rewrote_path, backup_text, prev_pin, new_pin = await _apply_requested_image(
+            (
+                rewrote_path,
+                backup_text,
+                prev_pin,
+                new_pin,
+                pin_changed,
+            ) = await _apply_requested_image(
                 project, target_deployment.image_tag, all_logs
             )
-            if rewrote_path is not None:
+            if rewrote_path is not None and pin_changed:
                 project.ghcr_image = new_pin
                 await db.flush()
                 await db.refresh(project, ["updated_at"])  # MissingGreenlet guard
@@ -406,7 +442,7 @@ async def rollback_deployment(
             if rewrote_path is not None and backup_text is not None:
                 Path(rewrote_path).write_text(backup_text)
                 all_logs.append(f"Restored original compose file ({Path(rewrote_path).name})")
-            if prev_pin is not None:
+            if pin_changed and prev_pin is not None:
                 project.ghcr_image = prev_pin
                 await db.flush()
                 await db.refresh(project, ["updated_at"])  # MissingGreenlet guard

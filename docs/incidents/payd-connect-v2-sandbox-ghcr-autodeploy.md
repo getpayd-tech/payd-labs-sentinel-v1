@@ -134,28 +134,27 @@ Expected after repair:
 ## Sentinel Custom Compose Follow-Up
 
 The Connect sandbox is a custom compose stack with many images and a shared
-`CONNECT_IMAGE_TAG` variable. Sentinel's current tagged deploy implementation
-rewrites `image:` lines derived from one `project.ghcr_image` base, plus the
-generated `-api` and `-ui` variants. That fits generated single-service and
-blended stacks, but it is not enough to fully describe arbitrary custom
-multi-image compose files.
+`CONNECT_IMAGE_TAG` variable. Sentinel's tagged deploy implementation rewrites
+`image:` lines derived from one `project.ghcr_image` base, plus the generated
+`-api` and `-ui` variants. For parameterized custom compose files, Sentinel also
+supports `*IMAGE_TAG` variables referenced from compose `image:` lines and
+updates those variables in the project `.env` before pulling.
 
-Create a Sentinel implementation follow-up before relying on generic manual
-deploy for this stack. The tracking issue is
+The remaining follow-up is to make project ownership more explicit for custom
+stacks that do not use a shared tag variable. The tracking issue is
 <https://github.com/getpayd-tech/payd-labs-sentinel-v1/issues/1>.
 
 
 - detect custom compose files where the requested tag rewrites zero or only part
-  of the project-owned images;
+  of the project-owned images and no `*IMAGE_TAG` fallback is available;
 - surface a clear warning or failed preflight instead of silently pulling the old
   image set;
-- support a project-level tag env var strategy, such as `CONNECT_IMAGE_TAG`, or
-  an explicit per-project image list for custom compose stacks;
+- support an explicit per-project image list for custom compose stacks that do
+  not use a shared tag env var;
 - add tests that cover generated single-service, generated blended, and custom
   multi-image compose behavior.
 
-Until that exists, treat the Connect GitHub Actions autodeploy path as the
-primary publication path for this stack.
+For Connect v2, the required tag strategy is `CONNECT_IMAGE_TAG`.
 
 ## Host File Verification
 

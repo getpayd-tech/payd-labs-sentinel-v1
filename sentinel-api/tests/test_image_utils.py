@@ -9,7 +9,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.services.image_utils import apply_image_tag, split_image_ref  # noqa: E402
+from app.services.image_utils import (  # noqa: E402
+    apply_env_assignment,
+    apply_image_tag,
+    find_image_tag_env_vars,
+    split_image_ref,
+)
 
 BACKEND = "ghcr.io/getpayd-tech/pandastarz-backend"
 
@@ -200,6 +205,52 @@ def test_base_does_not_substring_match_other_repo():
     out, count = apply_image_tag(text, "ghcr.io/org/repo", "new")
     assert count == 0
     assert out == text
+
+
+# ---------------------------------------------------------------------------
+# custom compose image tag env vars
+# ---------------------------------------------------------------------------
+
+CUSTOM_MULTI_IMAGE = (
+    "services:\n"
+    "  api:\n"
+    "    image: ${REGISTRY:-ghcr.io/org}/${PREFIX:-connect}-api:${CONNECT_IMAGE_TAG:-latest}\n"
+    "  ui:\n"
+    "    image: ${REGISTRY:-ghcr.io/org}/${PREFIX:-connect}-ui:${CONNECT_IMAGE_TAG:-latest}\n"
+    "  worker:\n"
+    "    image: ghcr.io/org/worker:${WORKER_IMAGE_TAG}\n"
+    "  cache:\n"
+    "    image: redis:7\n"
+    "x-note: ${IGNORED_IMAGE_TAG:-latest}\n"
+)
+
+
+def test_find_image_tag_env_vars_from_image_lines_only():
+    assert find_image_tag_env_vars(CUSTOM_MULTI_IMAGE) == [
+        "CONNECT_IMAGE_TAG",
+        "WORKER_IMAGE_TAG",
+    ]
+
+
+def test_apply_env_assignment_updates_existing_key():
+    text = "# project env\nCONNECT_IMAGE_TAG=old\nOTHER=value\n"
+    out, count = apply_env_assignment(text, "CONNECT_IMAGE_TAG", "new")
+    assert count == 1
+    assert out == "# project env\nCONNECT_IMAGE_TAG=new\nOTHER=value\n"
+
+
+def test_apply_env_assignment_appends_missing_key_with_final_newline():
+    text = "# project env\nOTHER=value"
+    out, count = apply_env_assignment(text, "CONNECT_IMAGE_TAG", "new")
+    assert count == 1
+    assert out == "# project env\nOTHER=value\nCONNECT_IMAGE_TAG=new\n"
+
+
+def test_apply_env_assignment_preserves_crlf():
+    text = "OTHER=value\r\nCONNECT_IMAGE_TAG=old\r\n"
+    out, count = apply_env_assignment(text, "CONNECT_IMAGE_TAG", "new")
+    assert count == 1
+    assert out == "OTHER=value\r\nCONNECT_IMAGE_TAG=new\r\n"
 
 
 # ---------------------------------------------------------------------------

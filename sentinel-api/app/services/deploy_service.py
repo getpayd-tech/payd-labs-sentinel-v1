@@ -617,6 +617,50 @@ async def trigger_deployment(
     return deployment
 
 
+async def record_external_deployment(
+    db: AsyncSession,
+    project: Project,
+    image_tag: Optional[str] = None,
+    triggered_by: str = "webhook",
+    trigger_type: str = "webhook",
+    status: str = "success",
+    logs: Optional[str] = None,
+    deploy_metadata: Optional[dict[str, Any]] = None,
+) -> Deployment:
+    """Record a deployment completed outside Sentinel's docker-compose runner.
+
+    This is for Sentinel itself and similar stacks where an external deploy
+    path is authoritative, but the normal status table should still reflect
+    the latest verified rollout.
+    """
+    if status not in {"success", "failed"}:
+        raise ValueError("recorded deployment status must be success or failed")
+
+    now = datetime.now(timezone.utc)
+    tag = image_tag or "latest"
+    metadata = {
+        "record_only": True,
+        "source": "external",
+        "external_metadata": deploy_metadata or {},
+    }
+    deployment = Deployment(
+        project_id=project.id,
+        trigger=trigger_type,
+        image_tag=tag,
+        previous_image_tag=project.ghcr_image,
+        status=status,
+        started_at=now,
+        completed_at=now,
+        duration_seconds=0,
+        logs=logs or f"Recorded external deployment for {project.name} at tag {tag}; no compose action was run by Sentinel.",
+        deploy_metadata=metadata,
+        triggered_by=triggered_by,
+    )
+    db.add(deployment)
+    await db.flush()
+    return deployment
+
+
 async def rollback_deployment(
     db: AsyncSession,
     project: Project,

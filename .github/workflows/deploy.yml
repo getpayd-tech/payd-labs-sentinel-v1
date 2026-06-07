@@ -103,6 +103,49 @@ jobs:
             docker image prune -f
             echo "Sentinel deployed successfully"
 
-      # Do not call Sentinel's own deploy webhook here. The SSH step above is
-      # the authoritative self-deploy path; a webhook deploy can recreate the
-      # sentinel-api container while it is handling the request.
+      # Do not call Sentinel's deploy-running webhook path here. The SSH step
+      # above is authoritative; this signed webhook only records the verified
+      # external deploy so `sentinel status` stays truthful.
+      - name: Record Sentinel deploy
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SENTINEL_WEBHOOK_SECRET: ${{ secrets.SENTINEL_WEBHOOK_SECRET }}
+          TRIGGERED_BY: ${{ github.actor }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import hmac
+          import json
+          import os
+          from pathlib import Path
+
+          payload = {
+              "project": "sentinel",
+              "image_tag": os.environ["IMAGE_TAG"],
+              "triggered_by": os.environ["TRIGGERED_BY"],
+              "record_only": True,
+              "record_status": "success",
+              "record_metadata": {
+                  "source": "github_actions_ssh_deploy",
+                  "run_url": os.environ["RUN_URL"],
+                  "images": {
+                      "sentinel-api": f"ghcr.io/getpayd-tech/sentinel-api:{os.environ['IMAGE_TAG']}",
+                      "sentinel-ui": f"ghcr.io/getpayd-tech/sentinel-ui:{os.environ['IMAGE_TAG']}",
+                  },
+              },
+          }
+          body = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+          signature = hmac.new(
+              os.environ["SENTINEL_WEBHOOK_SECRET"].encode("utf-8"),
+              body.encode("utf-8"),
+              hashlib.sha256,
+          ).hexdigest()
+          Path("sentinel_record_payload.json").write_text(body, encoding="utf-8")
+          Path("sentinel_record_signature.txt").write_text(signature, encoding="utf-8")
+          PY
+
+          curl -sf -X POST https://sentinel.paydlabs.com/api/v1/deployments/webhook \
+            -H "X-Hub-Signature-256: sha256=$(cat sentinel_record_signature.txt)" \
+            -H "Content-Type: application/json" \
+            --data-binary @sentinel_record_payload.json

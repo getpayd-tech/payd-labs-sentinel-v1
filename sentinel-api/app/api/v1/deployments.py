@@ -19,6 +19,7 @@ from app.services.audit_service import log_action
 from app.services.deploy_service import (
     get_deployment,
     list_deployments,
+    record_external_deployment,
     rollback_deployment,
     trigger_deployment,
     verify_webhook,
@@ -207,22 +208,39 @@ async def receive_webhook(
     if not verify_webhook(secret, body_bytes, signature):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
-    # Trigger deployment
-    dep = await trigger_deployment(
-        db,
-        project=project,
-        image_tag=payload.image_tag,
-        compose_bundle=payload.compose_bundle,
-        triggered_by=payload.triggered_by or "webhook",
-        trigger_type="webhook",
-    )
+    if payload.record_only:
+        try:
+            dep = await record_external_deployment(
+                db,
+                project=project,
+                image_tag=payload.image_tag,
+                triggered_by=payload.triggered_by or "webhook",
+                trigger_type="webhook",
+                status=payload.record_status,
+                logs=payload.record_logs,
+                deploy_metadata=payload.record_metadata,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        audit_action = "deployment.record"
+    else:
+        # Trigger deployment
+        dep = await trigger_deployment(
+            db,
+            project=project,
+            image_tag=payload.image_tag,
+            compose_bundle=payload.compose_bundle,
+            triggered_by=payload.triggered_by or "webhook",
+            trigger_type="webhook",
+        )
+        audit_action = "deployment.webhook"
 
     await log_action(
         db,
         user_id=None,
-        action="deployment.webhook",
+        action=audit_action,
         target=project.name,
-        details={"deployment_id": dep.id, "image_tag": dep.image_tag},
+        details={"deployment_id": dep.id, "image_tag": dep.image_tag, "record_only": payload.record_only},
         ip_address=request.client.host if request.client else None,
     )
 

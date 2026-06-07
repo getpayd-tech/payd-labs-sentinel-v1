@@ -1,7 +1,7 @@
 """Deployment schemas."""
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -20,6 +20,13 @@ class WebhookPayload(BaseModel):
     image_tag: Optional[str] = None
     triggered_by: Optional[str] = None
     compose_bundle: Optional[dict] = None
+    record_only: bool = Field(
+        False,
+        description="Record an externally managed deployment without running docker compose.",
+    )
+    record_status: Literal["success", "failed"] = "success"
+    record_logs: Optional[str] = None
+    record_metadata: Optional[dict] = None
 
 
 class DeploymentResponse(BaseModel):

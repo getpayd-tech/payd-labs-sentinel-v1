@@ -79,18 +79,21 @@ jobs:
             set -e
             echo "$GHCR_TOKEN" | docker login ghcr.io -u getpayd-tech --password-stdin
             cd /apps/sentinel
+            sed -i -E 's#ghcr\.io/getpayd-tech/sentinel-api:[^[:space:]]+#ghcr.io/getpayd-tech/sentinel-api:latest#g' docker-compose.yml
+            sed -i -E 's#ghcr\.io/getpayd-tech/sentinel-ui:[^[:space:]]+#ghcr.io/getpayd-tech/sentinel-ui:latest#g' docker-compose.yml
             docker compose pull
-            docker compose up -d
+            docker compose up -d --remove-orphans
 
             echo "Waiting for API health check..."
             for i in $(seq 1 12); do
-              if docker exec sentinel-api curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+              API_CID=$(docker compose ps -q sentinel-api | head -n 1)
+              if [ -n "$API_CID" ] && docker exec "$API_CID" curl -sf http://localhost:8000/health > /dev/null 2>&1; then
                 echo "API is healthy!"
                 break
               fi
               if [ "$i" -eq 12 ]; then
                 echo "Health check failed after 60s"
-                docker logs sentinel-api --tail 50
+                docker compose logs --tail 50 sentinel-api
                 exit 1
               fi
               echo "Attempt $i/12 — waiting 5s..."

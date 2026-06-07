@@ -140,21 +140,25 @@ The Connect sandbox is a custom compose stack with many images and a shared
 supports `*IMAGE_TAG` variables referenced from compose `image:` lines and
 updates those variables in the compose file directory's `.env` before pulling.
 
-The remaining follow-up is to make project ownership more explicit for custom
-stacks that do not use a shared tag variable. The tracking issue is
-<https://github.com/getpayd-tech/payd-labs-sentinel-v1/issues/1>.
+Sentinel now supports a first-class custom compose deploy contract through
+project `deploy_config`. For Connect v2, configure:
 
+```json
+{
+  "compose_source": "webhook_bundle",
+  "image_tag_variables": ["CONNECT_IMAGE_TAG"],
+  "project_image_prefixes": ["ghcr.io/getpayd-tech/payd-connect-v2-sandbox-"],
+  "edge_service": "payd-connect-v2-sandbox"
+}
+```
 
-- detect custom compose files where the requested tag rewrites zero or only part
-  of the project-owned images and no `*IMAGE_TAG` fallback is available;
-- surface a clear warning or failed preflight instead of silently pulling the old
-  image set;
-- support an explicit per-project image list for custom compose stacks that do
-  not use a shared tag env var;
-- add tests that cover generated single-service, generated blended, and custom
-  multi-image compose behavior.
-
-For Connect v2, the required tag strategy is `CONNECT_IMAGE_TAG`.
+The Connect workflow should send the project-owned `deploy/sentinel` bundle in
+the signed deployment webhook. Sentinel persists that bundle under the project
+compose directory, preserves `.env` secrets, updates `CONNECT_IMAGE_TAG`, renders
+the effective compose, asserts every managed service image including the edge
+router, and records structured deployment metadata. If the edge image is missing,
+stale, or replaced by `caddy:2-alpine`, the deployment must fail and restore the
+previous complete stack.
 
 ## Host File Verification
 

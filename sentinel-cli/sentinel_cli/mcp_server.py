@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 
 from mcp.server.fastmcp import FastMCP
@@ -60,6 +61,19 @@ def _fmt_services(items: list[dict]) -> str:
             f"{s.get('name', ''):<30} {s.get('status', ''):<15} {s.get('image', '')}"
         )
     return "\n".join(lines)
+
+
+def _parse_json_object(value: str | None, label: str) -> dict | str | None:
+    """Parse a JSON object argument for MCP tools."""
+    if value is None:
+        return None
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        return f"Invalid {label} JSON: {exc}"
+    if not isinstance(parsed, dict):
+        return f"{label} must be a JSON object"
+    return parsed
 
 
 @mcp.tool()
@@ -236,6 +250,7 @@ async def sentinel_create_project(
     description: str | None = None,
     compose_path: str | None = None,
     compose_file: str | None = None,
+    deploy_config_json: str | None = None,
     database_name: str | None = None,
     health_endpoint: str = "/health",
 ) -> str:
@@ -244,6 +259,10 @@ async def sentinel_create_project(
     project_type: fastapi | vue | blended | nuxt | laravel | custom.
     Returns the new project's id and auto-generated webhook_secret.
     """
+    deploy_config = _parse_json_object(deploy_config_json, "deploy_config")
+    if isinstance(deploy_config, str):
+        return deploy_config
+
     client = await _get_client()
     if isinstance(client, str):
         return client
@@ -261,6 +280,7 @@ async def sentinel_create_project(
             ("ghcr_image", ghcr_image),
             ("compose_path", compose_path),
             ("compose_file", compose_file),
+            ("deploy_config", deploy_config),
             ("database_name", database_name),
         ):
             if v:
@@ -287,12 +307,17 @@ async def sentinel_update_project(
     description: str | None = None,
     compose_path: str | None = None,
     compose_file: str | None = None,
+    deploy_config_json: str | None = None,
     health_endpoint: str | None = None,
     database_name: str | None = None,
     supports_custom_domains: bool | None = None,
     custom_domain_upstream: str | None = None,
 ) -> str:
     """Update project fields. Only non-None values are sent."""
+    deploy_config = _parse_json_object(deploy_config_json, "deploy_config")
+    if isinstance(deploy_config, str):
+        return deploy_config
+
     client = await _get_client()
     if isinstance(client, str):
         return client
@@ -311,6 +336,7 @@ async def sentinel_update_project(
             (description, "description"),
             (compose_path, "compose_path"),
             (compose_file, "compose_file"),
+            (deploy_config, "deploy_config"),
             (health_endpoint, "health_endpoint"),
             (database_name, "database_name"),
             (custom_domain_upstream, "custom_domain_upstream"),

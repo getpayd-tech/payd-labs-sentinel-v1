@@ -242,13 +242,14 @@ When Sentinel receives the webhook POST:
 2. **Looks up the project** by name - rejects if not registered
 3. **Creates a deployment record** (status: `in_progress`)
 4. **Applies the requested `image_tag`** - rewrites the matching `image:` line(s) in the project's on-disk `docker-compose.yml` to `<base>:<image_tag>` (base derived from the project's pinned `ghcr_image`) and updates the stored pin. Single-service projects bump one line; blended projects bump both the `-api` and `-ui` images to the same tag. If no concrete image lines match but compose `image:` lines use one or more `*IMAGE_TAG` variables, Sentinel updates those variables in the compose file directory's `.env` before pulling. If the webhook carries no tag, the file is left as-is and the current pinned image is restarted (a SHA pin is never regressed to `:latest`).
-5. **Verifies the rendered compose images** - for tagged deploys, `docker compose config --images` must reference the requested tag before Sentinel pulls.
+5. **Verifies the rendered compose images** - for tagged deploys, Sentinel renders `docker compose config --format json`, builds the intended managed service/image map, and requires every managed project image to resolve to the requested tag or digest before pulling.
 6. **Runs `docker compose pull`** in the project's `/apps/{name}/` directory
 7. **Runs `docker compose up -d`** to recreate containers with the new image
 8. **Health check** - hits `https://{domain}{health_endpoint}` every 5 seconds for up to 60 seconds
-9. **If healthy** → deployment status set to `success`
-10. **If unhealthy** → true rollback: the original compose file and pin are restored, then `docker compose pull` + `up -d` re-recreates containers on the previous image; status set to `failed`
-11. **Records everything** - start time, end time, duration, full logs (including the image-rewrite outcome), who triggered it
+9. **Asserts live containers** - after `up -d`, Sentinel inspects Compose-labeled containers and compares service name, configured image, image ID, state, and health against the intended map.
+10. **If healthy and asserted** → deployment status set to `success`
+11. **If unhealthy or mismatched** → true rollback: the original compose/env/bundle files and pin are restored, then `docker compose pull` + `up -d` re-recreates containers on the previous image; status set to `failed`
+12. **Records everything** - start time, end time, duration, full logs, effective compose summary, intended service/image map, runtime assertion results, and who triggered it
 
 > Because step 4 makes the deploy authoritative about the image tag, the old
 > manual workaround (`sentinel project update --image …` → `sentinel project
@@ -262,7 +263,61 @@ When Sentinel receives the webhook POST:
 > model. Parameterized custom multi-image stacks are supported when their
 > compose `image:` lines use an explicit shared tag variable such as
 > `CONNECT_IMAGE_TAG`; Sentinel updates the referenced `*IMAGE_TAG` variable(s)
-> in the compose file directory's `.env` before `docker compose pull`.
+> in the compose file directory's `.env` before `docker compose pull`. Projects
+> with custom edge/router services should also set `deploy_config` so Sentinel
+> knows which image prefixes and edge service must be asserted.
+
+### Custom Compose Deploy Config
+
+Custom compose projects can opt into explicit deploy assertions through the
+project `deploy_config` JSON field:
+
+```json
+{
+  "compose_source": "webhook_bundle",
+  "image_tag_variables": ["CONNECT_IMAGE_TAG"],
+  "project_image_prefixes": ["ghcr.io/getpayd-tech/payd-connect-v2-sandbox-"],
+  "edge_service": "payd-connect-v2-sandbox",
+  "artifact_contract": {
+    "static": "generated docs, tracker, route hub, and fallback assets are packaged into project images"
+  }
+}
+```
+
+Set it with the CLI:
+
+```bash
+sentinel project update payd-connect-v2-sandbox \
+  --deploy-config '{"compose_source":"webhook_bundle","image_tag_variables":["CONNECT_IMAGE_TAG"],"project_image_prefixes":["ghcr.io/getpayd-tech/payd-connect-v2-sandbox-"],"edge_service":"payd-connect-v2-sandbox","artifact_contract":{"static":"generated assets are packaged into project images"}}'
+```
+
+When `compose_source` is `webhook_bundle`, the signed deployment webhook must
+include a text or base64 bundle. Sentinel writes these files under the project
+compose directory, rejects absolute paths, path traversal, and `.env`
+replacement, then restores the previous file set on failure.
+
+```json
+{
+  "project": "payd-connect-v2-sandbox",
+  "image_tag": "<git-sha>",
+  "triggered_by": "github-actions",
+  "compose_bundle": {
+    "source": "getpayd-tech/payd-labs-connect-v1@<git-sha>",
+    "files": [
+      {
+        "path": "deploy/sentinel/docker-compose.v2.sentinel.yml",
+        "content": "name: payd-connect-v2-sandbox\nservices:\n  ..."
+      },
+      {
+        "path": "deploy/sentinel/Caddyfile",
+        "content": "{\n  email {$CADDY_ACME_EMAIL:ops@payd.money}\n}\n"
+      }
+    ]
+  }
+}
+```
+
+The full JSON body is still protected by the existing HMAC signature header.
 
 ---
 

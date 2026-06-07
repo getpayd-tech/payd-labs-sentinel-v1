@@ -19,8 +19,9 @@ Your Repo (GitHub Actions)                 Sentinel (on server)
                                            5. docker compose pull
                                            6. docker compose up -d
                                            7. Health check (60s)
-                                           8. Auto-rollback if failed
-                                           9. Record in deployment log
+                                           8. Assert live service images
+                                           9. Auto-rollback if failed
+                                           10. Record deployment metadata
 ```
 
 **One secret per repo:** `SENTINEL_WEBHOOK_SECRET`
@@ -68,6 +69,7 @@ All 10 services on the Payd Labs server (`46.101.240.141`) deploy through Sentin
 | **Services** | List, restart, stop, start containers; view logs |
 | **Deployments** | Webhook-triggered deploys, manual deploy, rollback, history |
 | **Projects** | Register, scan, edit projects; manage env vars |
+| **Custom Compose Deploys** | Signed compose bundles, shared image-tag variables, edge/router image assertions, rollback-safe metadata |
 | **Custom Domains** | Services register user domains via API; Sentinel writes Caddy blocks with on-demand TLS |
 | **Database** | Browse managed PostgreSQL: databases, tables, schemas, run queries |
 | **Domains** | Manage Caddy routes with TLS (ACME / Cloudflare DNS / on-demand) |

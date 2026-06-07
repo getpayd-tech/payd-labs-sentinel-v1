@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import time
 from typing import Optional
@@ -47,6 +48,21 @@ def _parse_since(value: str) -> int:
     amount, unit = int(m.group(1)), m.group(2)
     multipliers = {"s": 1, "m": 60, "h": 3600, "d": 86400}
     return int(time.time()) - amount * multipliers[unit]
+
+
+def _parse_json_option(value: str | None, label: str) -> dict | None:
+    """Parse a JSON CLI option into an object."""
+    if value is None:
+        return None
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        console.print(f"[red]Invalid {label} JSON:[/red] {exc}")
+        raise typer.Exit(1) from exc
+    if not isinstance(parsed, dict):
+        console.print(f"[red]{label} must be a JSON object[/red]")
+        raise typer.Exit(1)
+    return parsed
 
 
 # ---------------------------------------------------------------------------
@@ -402,6 +418,7 @@ def project_create(
     description: Optional[str] = typer.Option(None, "--description"),
     compose_path: Optional[str] = typer.Option(None, "--compose-path", help="Override /apps/<name>"),
     compose_file: Optional[str] = typer.Option(None, "--compose-file", help="e.g. docker-compose.prod.yml"),
+    deploy_config_json: Optional[str] = typer.Option(None, "--deploy-config", help="JSON custom deploy config"),
     health_endpoint: str = typer.Option("/health", "--health"),
     database_name: Optional[str] = typer.Option(None, "--db"),
     url: Optional[str] = typer.Option(None, "--url", hidden=True),
@@ -422,6 +439,7 @@ def project_create(
                 "domain": domain,
                 "compose_path": compose_path,
                 "compose_file": compose_file,
+                "deploy_config": _parse_json_option(deploy_config_json, "deploy config"),
                 "database_name": database_name,
             }.items():
                 if v:
@@ -450,7 +468,7 @@ def project_show(
             for k in (
                 "name", "display_name", "description", "project_type", "status",
                 "domain", "github_repo", "ghcr_image", "compose_path", "compose_file",
-                "health_endpoint", "database_name", "webhook_secret",
+                "deploy_config", "health_endpoint", "database_name", "webhook_secret",
                 "supports_custom_domains", "custom_domain_upstream", "service_api_key",
             ):
                 val = p.get(k)
@@ -473,6 +491,7 @@ def project_update(
     description: Optional[str] = typer.Option(None, "--description"),
     compose_path: Optional[str] = typer.Option(None, "--compose-path"),
     compose_file: Optional[str] = typer.Option(None, "--compose-file"),
+    deploy_config_json: Optional[str] = typer.Option(None, "--deploy-config"),
     health_endpoint: Optional[str] = typer.Option(None, "--health"),
     database_name: Optional[str] = typer.Option(None, "--db"),
     custom_domains: Optional[bool] = typer.Option(None, "--custom-domains/--no-custom-domains"),
@@ -493,6 +512,7 @@ def project_update(
                 (description, "description"),
                 (compose_path, "compose_path"),
                 (compose_file, "compose_file"),
+                (_parse_json_option(deploy_config_json, "deploy config"), "deploy_config"),
                 (health_endpoint, "health_endpoint"),
                 (database_name, "database_name"),
                 (custom_domain_upstream, "custom_domain_upstream"),

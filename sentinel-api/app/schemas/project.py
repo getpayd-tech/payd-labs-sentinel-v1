@@ -20,6 +20,7 @@ class ProjectCreate(BaseModel):
     health_endpoint: Optional[str] = "/health"
     database_name: Optional[str] = None
     container_names: Optional[dict] = None
+    deploy_config: Optional[dict] = None
 
 
 class ProjectUpdate(BaseModel):
@@ -35,6 +36,7 @@ class ProjectUpdate(BaseModel):
     health_endpoint: Optional[str] = None
     database_name: Optional[str] = None
     container_names: Optional[dict] = None
+    deploy_config: Optional[dict] = None
     supports_custom_domains: Optional[bool] = None
     custom_domain_upstream: Optional[str] = None
     status: Optional[str] = None
@@ -53,6 +55,7 @@ class ProjectResponse(BaseModel):
     compose_path: Optional[str] = None
     compose_file: Optional[str] = None
     container_names: Optional[dict] = None
+    deploy_config: Optional[dict] = None
     health_endpoint: Optional[str] = None
     webhook_secret: Optional[str] = None
     database_name: Optional[str] = None

@@ -169,6 +169,7 @@ export interface DeploymentInfo {
   started_at: string | null
   completed_at: string | null
   logs: string | null
+  deploy_metadata?: Record<string, unknown> | null
 }
 
 export interface DeploymentList {
@@ -199,6 +200,7 @@ export interface ProjectInfo {
   // Derived from container_names when the backend omits it.
   container_count: number
   container_names?: Record<string, string> | null
+  deploy_config?: Record<string, unknown> | null
   github_repo: string | null
   ghcr_image: string | null
   compose_path?: string | null
@@ -218,6 +220,7 @@ export interface ProjectCreate {
   display_name: string
   description?: string
   type: ProjectType
+  deploy_config?: Record<string, unknown>
   domain?: string
   github_repo?: string
   ghcr_image?: string
@@ -237,6 +240,7 @@ export interface ProjectUpdate {
   display_name?: string
   description?: string
   project_type?: ProjectType
+  deploy_config?: Record<string, unknown> | null
   domain?: string
   github_repo?: string
   ghcr_image?: string

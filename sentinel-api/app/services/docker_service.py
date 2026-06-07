@@ -228,6 +228,43 @@ def list_containers() -> list[dict[str, Any]]:
     return containers
 
 
+def list_compose_project_containers(project_name: str) -> dict[str, dict[str, Any]]:
+    """Return live containers keyed by Compose service name for one project."""
+    client = _get_client()
+    services: dict[str, dict[str, Any]] = {}
+
+    try:
+        containers = client.containers.list(
+            all=True,
+            filters={"label": f"com.docker.compose.project={project_name}"},
+        )
+        for container in containers:
+            attrs = container.attrs or {}
+            config = attrs.get("Config", {})
+            state = attrs.get("State", {})
+            labels = config.get("Labels", {}) or {}
+            service_name = labels.get("com.docker.compose.service") or container.name
+            services[service_name] = {
+                "service": service_name,
+                "container": container.name,
+                "id": container.short_id,
+                "status": container.status,
+                "health": _get_health(attrs),
+                "image": config.get("Image", str(container.image.tags[0] if container.image.tags else "")),
+                "image_id": attrs.get("Image", ""),
+                "exit_code": state.get("ExitCode"),
+                "started_at": state.get("StartedAt"),
+                "finished_at": state.get("FinishedAt"),
+            }
+    except DockerException as exc:
+        logger.error("Failed to list compose containers for %s: %s", project_name, exc)
+        raise
+    finally:
+        client.close()
+
+    return services
+
+
 def get_container(name: str) -> dict[str, Any]:
     """Get detailed information for a single container.
 

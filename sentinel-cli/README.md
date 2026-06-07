@@ -49,7 +49,17 @@ single-container and blended projects, where the project `ghcr_image` maps to
 one image or the generated `-api` and `-ui` images. For parameterized custom
 multi-image compose stacks, put a shared `*IMAGE_TAG` variable in the compose
 `image:` lines, for example `CONNECT_IMAGE_TAG`; Sentinel updates that variable
-in the compose file directory's `.env` before `docker compose pull`.
+in the compose file directory's `.env` before `docker compose pull`. For custom
+edge/router stacks, set `--deploy-config` with image prefixes and the edge
+service so Sentinel can assert the live service/image map before reporting
+success.
+
+Example:
+
+```bash
+sentinel project update payd-connect-v2-sandbox \
+  --deploy-config '{"compose_source":"webhook_bundle","image_tag_variables":["CONNECT_IMAGE_TAG"],"project_image_prefixes":["ghcr.io/getpayd-tech/payd-connect-v2-sandbox-"],"edge_service":"payd-connect-v2-sandbox"}'
+```
 
 ### Projects
 

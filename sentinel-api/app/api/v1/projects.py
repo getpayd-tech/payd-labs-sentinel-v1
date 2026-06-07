@@ -66,6 +66,7 @@ def _project_to_response(p) -> ProjectResponse:
         compose_path=p.compose_path,
         compose_file=p.compose_file,
         container_names=p.container_names,
+        deploy_config=p.deploy_config,
         health_endpoint=p.health_endpoint,
         webhook_secret=p.webhook_secret,
         database_name=p.database_name,

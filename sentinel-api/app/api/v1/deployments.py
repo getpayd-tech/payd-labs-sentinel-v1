@@ -47,6 +47,7 @@ def _deployment_to_response(dep, project_name: str = "") -> DeploymentResponse:
         completed_at=dep.completed_at.isoformat() if dep.completed_at else None,
         duration_seconds=dep.duration_seconds,
         logs=dep.logs,
+        deploy_metadata=dep.deploy_metadata,
         triggered_by=dep.triggered_by,
     )
 
@@ -211,6 +212,7 @@ async def receive_webhook(
         db,
         project=project,
         image_tag=payload.image_tag,
+        compose_bundle=payload.compose_bundle,
         triggered_by=payload.triggered_by or "webhook",
         trigger_type="webhook",
     )

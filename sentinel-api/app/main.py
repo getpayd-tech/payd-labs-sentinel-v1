@@ -76,9 +76,11 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await _ensure_column(conn, "projects", "description", "TEXT")
         await _ensure_column(conn, "projects", "compose_file", "VARCHAR(200)")
+        await _ensure_column(conn, "projects", "deploy_config", "JSON")
         await _ensure_column(conn, "projects", "supports_custom_domains", "BOOLEAN DEFAULT 0")
         await _ensure_column(conn, "projects", "custom_domain_upstream", "VARCHAR(300)")
         await _ensure_column(conn, "projects", "service_api_key", "VARCHAR(200)")
+        await _ensure_column(conn, "deployments", "deploy_metadata", "JSON")
 
     # Start background scheduler
     start_scheduler()

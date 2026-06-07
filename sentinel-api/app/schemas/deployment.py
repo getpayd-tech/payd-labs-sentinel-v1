@@ -19,6 +19,7 @@ class WebhookPayload(BaseModel):
     project: str = Field(..., description="Project name matching the project record")
     image_tag: Optional[str] = None
     triggered_by: Optional[str] = None
+    compose_bundle: Optional[dict] = None
 
 
 class DeploymentResponse(BaseModel):
@@ -34,6 +35,7 @@ class DeploymentResponse(BaseModel):
     completed_at: Optional[str] = None
     duration_seconds: Optional[int] = None
     logs: Optional[str] = None
+    deploy_metadata: Optional[dict] = None
     triggered_by: Optional[str] = None
 
     model_config = {"from_attributes": True}

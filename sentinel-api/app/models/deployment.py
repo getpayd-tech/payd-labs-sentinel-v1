@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Text, Integer, DateTime, ForeignKey, func
+from sqlalchemy import String, Text, Integer, DateTime, ForeignKey, JSON, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -23,4 +23,5 @@ class Deployment(Base):
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     logs: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    deploy_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     triggered_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)

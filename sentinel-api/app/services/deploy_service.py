@@ -89,6 +89,23 @@ async def _run_command(cmd: list[str], cwd: str | None = None) -> tuple[int, str
     return proc.returncode or 0, output
 
 
+def _parse_compose_config_json(output: str) -> tuple[dict[str, Any], str | None]:
+    """Parse Docker Compose JSON output, tolerating warning lines before JSON."""
+    stripped = output.lstrip()
+    if stripped.startswith("{") or stripped.startswith("["):
+        return json.loads(stripped), None
+
+    object_index = output.find("{")
+    array_index = output.find("[")
+    candidates = [idx for idx in (object_index, array_index) if idx >= 0]
+    if not candidates:
+        raise json.JSONDecodeError("No JSON object found", output, 0)
+
+    start = min(candidates)
+    prefix = output[:start].strip()
+    return json.loads(output[start:].lstrip()), prefix or None
+
+
 async def _health_check(project: Project) -> bool:
     """Run a basic HTTP health check against the project's health endpoint.
 
@@ -263,10 +280,12 @@ async def _render_compose_config(
         all_logs.append(output)
         raise RuntimeError(f"docker compose config --format json failed (rc={rc})")
     try:
-        rendered = json.loads(output)
+        rendered, warning_prefix = _parse_compose_config_json(output)
     except json.JSONDecodeError as exc:
         all_logs.append(output[:4000])
         raise RuntimeError(f"docker compose config did not return JSON: {exc}") from exc
+    if warning_prefix:
+        all_logs.append(f"Ignored docker compose config warning prefix: {warning_prefix[:500]}")
     services = rendered.get("services") or {}
     all_logs.append(f"Rendered compose project {rendered.get('name') or '-'} with {len(services)} service(s)")
     return rendered

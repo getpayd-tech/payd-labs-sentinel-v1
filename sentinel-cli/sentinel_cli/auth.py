@@ -50,9 +50,10 @@ def load_credentials() -> dict | None:
     if not CREDENTIALS_FILE.exists():
         return None
     try:
-        return json.loads(CREDENTIALS_FILE.read_text())
+        credentials = json.loads(CREDENTIALS_FILE.read_text())
     except (json.JSONDecodeError, OSError):
         return None
+    return credentials if isinstance(credentials, dict) else None
 
 
 def get_valid_token(base_url: str) -> str | None:
@@ -71,22 +72,35 @@ def get_valid_token(base_url: str) -> str | None:
     if not creds:
         return None
 
+    auth_token = creds.get("auth_token")
+    if not isinstance(auth_token, str) or not auth_token:
+        return None
+    expires_at = creds.get("expires_at")
+    if not isinstance(expires_at, (int, float)):
+        try:
+            expires_at = _decode_jwt_payload(auth_token).get("exp")
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            expires_at = None
+
     now = time.time()
-    if creds["expires_at"] > now + 60:
-        return creds["auth_token"]
+    if expires_at is None or expires_at > now + 60:
+        return auth_token
 
     # Token expired or near expiry - try refresh
+    refresh_token = creds.get("refresh_token")
+    if not isinstance(refresh_token, str) or not refresh_token:
+        return None
     try:
-        new_auth, new_refresh = _refresh_token(base_url, creds["refresh_token"])
+        new_auth, new_refresh = _refresh_token(base_url, refresh_token)
         save_credentials(new_auth, new_refresh)
         return new_auth
-    except Exception as exc:
+    except (httpx.HTTPError, ValueError, OSError) as exc:
         logger.debug("Token refresh failed: %s", exc)
         return None
 
 
 def _refresh_token(base_url: str, refresh_tok: str) -> tuple[str, str]:
-    """Exchange a refresh token for new auth + refresh tokens."""
+    """Exchange a refresh token, retaining it when it is not rotated."""
     with httpx.Client(timeout=30.0) as client:
         resp = client.post(
             f"{base_url}/api/v1/auth/refresh",
@@ -95,9 +109,9 @@ def _refresh_token(base_url: str, refresh_tok: str) -> tuple[str, str]:
         resp.raise_for_status()
         data = resp.json()
         auth_token = data.get("authToken") or data.get("access_token")
-        refresh_token = data.get("refreshToken") or data.get("refresh_token")
-        if not auth_token or not refresh_token:
-            raise ValueError("Missing tokens in refresh response")
+        refresh_token = data.get("refreshToken") or data.get("refresh_token") or refresh_tok
+        if not auth_token:
+            raise ValueError("Missing auth token in refresh response")
         return auth_token, refresh_token
 
 

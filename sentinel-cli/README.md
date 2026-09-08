@@ -5,7 +5,7 @@ CLI and MCP server for the [Sentinel](https://sentinel.paydlabs.com) DevOps port
 ## Install
 
 ```bash
-pip install sentinel-cli
+pip install payd-labs-sentinel-cli
 ```
 
 Requires Python 3.12+.
@@ -13,7 +13,7 @@ Requires Python 3.12+.
 ## Quick start
 
 ```bash
-sentinel login    # one-time OTP via Payd Auth, caches token at ~/.sentinel/
+payd-sentinel login    # one-time OTP via Payd Auth, caches token at ~/.sentinel/
 
 # End-to-end bootstrap of a new service (one command):
 sentinel bootstrap \
@@ -137,7 +137,9 @@ sentinel init    # prompts for each field, runs the 9-step wizard
 
 ## Auth
 
-Run `sentinel login` once. Tokens are cached at `~/.sentinel/credentials.json` with auto-refresh.
+Run `payd-sentinel login` once. Tokens are cached at
+`~/.sentinel/credentials.json` with automatic refresh before expiry. A new OTP
+is required only when the refresh token is missing, expired, or revoked.
 
 Or set `SENTINEL_TOKEN` env var with a valid admin JWT to skip the login flow.
 
